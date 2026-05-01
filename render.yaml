@@ -1,5 +1,4 @@
 services:
-  # Main Auto-Add Server
   - type: web
     name: auto-add-server
     runtime: python
@@ -16,21 +15,5 @@ services:
     autoDeploy: true
     disk:
       name: data
-      mountPath: /opt/render/project/src/data
-      sizeGB: 1
-
-  # Daily Report Cron Job (sends report every day at midnight UTC)
-  - type: cron
-    name: daily-report
-    runtime: python
-    region: oregon
-    schedule: "0 0 * * *"
-    buildCommand: pip install -r requirements.txt
-    startCommand: python report_cron.py
-    envVars:
-      - key: PYTHON_VERSION
-        value: 3.11.0
-    disk:
-      name: report-data
       mountPath: /opt/render/project/src/data
       sizeGB: 1
