@@ -29,9 +29,8 @@ import threading
 import requests
 from datetime import datetime, timedelta
 from collections import defaultdict
-import nest_asyncio
 
-nest_asyncio.apply()
+# Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
@@ -73,7 +72,6 @@ SERVER_ADMIN_FILE = 'server_admin.json'
 accounts = []
 temp_sessions = {}
 auto_add_settings = {}
-active_clients = {}
 running_tasks = {}
 worker_adds = defaultdict(list)
 server_admin = {}
@@ -86,12 +84,32 @@ stats = {
 }
 
 OTHER_SERVERS = [
-    {'name': 'Dil', 'num': 1, 'url': 'https://dilbedil.onrender.com'},
+    {'name': 'Dil', 'num': 1, 'url': 'https://dilbedl.onrender.com'},
     {'name': 'sofu', 'num': 2, 'url': 'https://sofuu.onrender.com'},
     {'name': 'bebby', 'num': 3, 'url': 'https://bebby.onrender.com'},
-    {'name': 'kaleb', 'num': 4, 'url': 'https://kaleb.onrender.com'},
-    {'name': 'fitsum', 'num': 5, 'url': 'https://fitsum.onrender.com'}
+    {'name': 'kaleb', 'num': 4, 'url': 'https://kaleb-bwgb.onrender.com'},
+    {'name': 'fitsum', 'num': 5, 'url': 'https://fitsum-ev9d.onrender.com'}
 ]
+
+# Global event loop for all async operations
+_event_loop = None
+_loop_lock = threading.Lock()
+
+def get_event_loop():
+    """Get or create a single shared event loop"""
+    global _event_loop
+    with _loop_lock:
+        if _event_loop is None or _event_loop.is_closed():
+            _event_loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(_event_loop)
+        return _event_loop
+
+def run_async(coro):
+    """Run async function in the shared event loop safely"""
+    loop = get_event_loop()
+    # Create a new task in the existing loop
+    future = asyncio.run_coroutine_threadsafe(coro, loop)
+    return future.result(timeout=120)  # 2 minute timeout
 
 def load_json(path, default):
     try:
@@ -108,14 +126,6 @@ def save_json(path, data):
             json.dump(data, f, indent=2, default=str)
     except Exception as e:
         logger.error(f"Save error: {e}")
-
-def run_async(coro):
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    try:
-        return loop.run_until_complete(coro)
-    finally:
-        loop.close()
 
 def get_client(acc):
     return TelegramClient(
@@ -136,6 +146,8 @@ def reset_daily():
 
 def check_account_auth(acc):
     try:
+        loop = get_event_loop()
+        
         async def check():
             client = get_client(acc)
             await client.connect()
@@ -143,8 +155,11 @@ def check_account_auth(acc):
                 return await client.is_user_authorized()
             finally:
                 await client.disconnect()
-        return run_async(check())
-    except:
+        
+        future = asyncio.run_coroutine_threadsafe(check(), loop)
+        return future.result(timeout=30)
+    except Exception as e:
+        logger.error(f"Auth check error: {e}")
         return False
 
 def remove_dead_account(aid, reason=""):
@@ -165,7 +180,10 @@ def remove_dead_account(aid, reason=""):
     save_json(STATS_FILE, stats)
     
     logger.warning(f"🗑️ Removed dead account: {name} | Reason: {reason}")
-    send_telegram(f"🗑️ <b>{SERVER_NAME}</b>\nRemoved: {name}\nReason: {reason}")
+    try:
+        send_telegram(f"🗑️ <b>{SERVER_NAME}</b>\nRemoved: {name}\nReason: {reason}")
+    except:
+        pass
     return name
 
 def verify_worker_adds(admin_acc, worker_ids):
@@ -173,6 +191,8 @@ def verify_worker_adds(admin_acc, worker_ids):
         return None
     
     logger.info(f"🔍 Admin {admin_acc['name']} verifying workers: {worker_ids}")
+    
+    loop = get_event_loop()
     
     async def verify():
         client = get_client(admin_acc)
@@ -211,7 +231,8 @@ def verify_worker_adds(admin_acc, worker_ids):
         finally:
             await client.disconnect()
     
-    return run_async(verify())
+    future = asyncio.run_coroutine_threadsafe(verify(), loop)
+    return future.result(timeout=120)
 
 def send_telegram(text):
     try:
@@ -221,9 +242,10 @@ def send_telegram(text):
         logger.error(f"Send telegram error: {e}")
 
 # ============================================
-# AGGRESSIVE AUTO-ADD WORKER
+# AGGRESSIVE AUTO-ADD WORKER (Runs in its own thread with its own event loop)
 # ============================================
 def auto_add_worker(account):
+    """Aggressive auto-add worker"""
     acc_id = account['id']
     acc_key = str(acc_id)
     attempted = set()
@@ -231,6 +253,10 @@ def auto_add_worker(account):
     cycle_count = 0
     
     logger.info(f"🔥 AUTO-ADD STARTED: {account.get('name')} -> @{TARGET_GROUP}")
+    
+    # Each worker gets its own event loop
+    worker_loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(worker_loop)
     
     while True:
         try:
@@ -241,45 +267,43 @@ def auto_add_worker(account):
             
             reset_daily()
             
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            
             try:
                 client = get_client(account)
-                loop.run_until_complete(client.connect())
+                worker_loop.run_until_complete(client.connect())
                 
-                if not loop.run_until_complete(client.is_user_authorized()):
+                if not worker_loop.run_until_complete(client.is_user_authorized()):
                     logger.error(f"Account {acc_id} not authorized")
-                    loop.close()
+                    worker_loop.run_until_complete(client.disconnect())
                     remove_dead_account(acc_id, "Not authorized")
-                    return
+                    break
                 
-                me = loop.run_until_complete(client.get_me())
+                me = worker_loop.run_until_complete(client.get_me())
                 worker_name = me.first_name or 'User'
                 
                 if not joined:
                     try:
-                        grp = loop.run_until_complete(client.get_entity(TARGET_GROUP))
-                        loop.run_until_complete(client(JoinChannelRequest(grp)))
+                        grp = worker_loop.run_until_complete(client.get_entity(TARGET_GROUP))
+                        worker_loop.run_until_complete(client(JoinChannelRequest(grp)))
                         joined = True
                         logger.info(f"✅ {worker_name} joined @{TARGET_GROUP}")
                     except Exception as e:
                         if 'already' in str(e).lower() or 'participant' in str(e).lower():
                             joined = True
                 
-                group = loop.run_until_complete(client.get_entity(TARGET_GROUP))
+                group = worker_loop.run_until_complete(client.get_entity(TARGET_GROUP))
                 
                 all_ids = set()
                 
+                # Collect members from various sources
                 try:
-                    contacts = loop.run_until_complete(client(GetContactsRequest(0)))
+                    contacts = worker_loop.run_until_complete(client(GetContactsRequest(0)))
                     for c in contacts.users:
                         if c.id and not c.bot:
                             all_ids.add(c.id)
                 except: pass
                 
                 try:
-                    dialogs = loop.run_until_complete(client.get_dialogs(limit=500))
+                    dialogs = worker_loop.run_until_complete(client.get_dialogs(limit=500))
                     for d in dialogs:
                         if d.is_user and d.entity and d.entity.id and not getattr(d.entity, 'bot', False):
                             all_ids.add(d.entity.id)
@@ -289,8 +313,8 @@ def auto_add_worker(account):
                                  '@builders', '@Android', '@iOS', '@Python', '@programming']
                 for sg in source_groups:
                     try:
-                        entity = loop.run_until_complete(client.get_entity(sg))
-                        participants = loop.run_until_complete(client.get_participants(entity, limit=300))
+                        entity = worker_loop.run_until_complete(client.get_entity(sg))
+                        participants = worker_loop.run_until_complete(client.get_participants(entity, limit=300))
                         for user in participants:
                             if user.id and not user.bot:
                                 all_ids.add(user.id)
@@ -298,7 +322,7 @@ def auto_add_worker(account):
                     except: pass
                 
                 try:
-                    target_participants = loop.run_until_complete(client.get_participants(group, limit=200))
+                    target_participants = worker_loop.run_until_complete(client.get_participants(group, limit=200))
                     for user in target_participants:
                         if user.id and not user.bot:
                             all_ids.add(user.id)
@@ -324,8 +348,8 @@ def auto_add_worker(account):
                     attempted.add(uid)
                     
                     try:
-                        user_input = loop.run_until_complete(client.get_input_entity(uid))
-                        loop.run_until_complete(client(InviteToChannelRequest(group, [user_input])))
+                        user_input = worker_loop.run_until_complete(client.get_input_entity(uid))
+                        worker_loop.run_until_complete(client(InviteToChannelRequest(group, [user_input])))
                         
                         add_record = {
                             'user_id': uid, 'time': datetime.now().isoformat(),
@@ -356,7 +380,7 @@ def auto_add_worker(account):
                         continue
                     except errors.rpcerrorlist.AuthKeyUnregisteredError:
                         logger.error(f"Auth key unregistered for {acc_id}")
-                        loop.close()
+                        worker_loop.run_until_complete(client.disconnect())
                         remove_dead_account(acc_id, "Auth key unregistered")
                         return
                     except Exception as e:
@@ -370,21 +394,20 @@ def auto_add_worker(account):
                 save_json(STATS_FILE, stats)
                 save_json(WORKER_ADDS_FILE, dict(worker_adds))
                 
+                worker_loop.run_until_complete(client.disconnect())
+                
             except errors.rpcerrorlist.AuthKeyUnregisteredError:
                 logger.error(f"Auth key unregistered for account {acc_id}")
                 remove_dead_account(acc_id, "Auth key unregistered")
-                return
+                break
             except Exception as e:
                 logger.error(f"Loop error: {e}")
-            finally:
                 try:
-                    loop.run_until_complete(client.disconnect())
+                    worker_loop.run_until_complete(client.disconnect())
                 except:
                     pass
-                loop.close()
             
             rest = random.randint(60, 180)
-            logger.info(f"😴 Rest {rest}s...")
             time.sleep(rest)
             
         except Exception as e:
@@ -401,7 +424,7 @@ def start_auto_add(account):
     logger.info(f"🚀 Started worker for: {account.get('name', account['id'])}")
 
 # ============================================
-# PAGE ROUTES
+# FLASK ROUTES - These use the shared event loop
 # ============================================
 @app.route('/')
 @app.route('/auto-add')
@@ -428,9 +451,6 @@ def all_page():
 def ping():
     return jsonify({'status': 'ok', 'server': SERVER_NAME})
 
-# ============================================
-# ACCOUNT API ROUTES
-# ============================================
 @app.route('/api/server-info')
 def server_info():
     return jsonify({
@@ -478,12 +498,14 @@ def add_account():
         if not phone.startswith('+'):
             phone = '+' + phone
         
+        loop = get_event_loop()
+        
         async def send():
             client = TelegramClient(StringSession(), API_ID, API_HASH)
             await client.connect()
             try:
                 result = await client.send_code_request(phone)
-                sid = str(int(time.time()))
+                sid = str(int(time.time() * 1000))
                 temp_sessions[sid] = {
                     'phone': phone,
                     'hash': result.phone_code_hash,
@@ -499,7 +521,8 @@ def add_account():
             finally:
                 await client.disconnect()
         
-        return jsonify(run_async(send()))
+        future = asyncio.run_coroutine_threadsafe(send(), loop)
+        return jsonify(future.result(timeout=60))
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 
@@ -515,6 +538,7 @@ def verify_code():
             return jsonify({'success': False, 'error': 'Session expired'})
         
         td = temp_sessions[sid]
+        loop = get_event_loop()
         
         async def verify():
             client = TelegramClient(StringSession(td['session']), API_ID, API_HASH)
@@ -580,7 +604,9 @@ def verify_code():
             finally:
                 await client.disconnect()
         
-        result = run_async(verify())
+        future = asyncio.run_coroutine_threadsafe(verify(), loop)
+        result = future.result(timeout=60)
+        
         if sid in temp_sessions:
             del temp_sessions[sid]
         return jsonify(result)
@@ -594,9 +620,6 @@ def remove_account():
     name = remove_dead_account(aid, "Manual removal")
     return jsonify({'success': True, 'message': f'Removed: {name}'})
 
-# ============================================
-# GET MESSAGES / CHATS
-# ============================================
 @app.route('/api/get-messages', methods=['POST'])
 def get_messages():
     try:
@@ -605,6 +628,8 @@ def get_messages():
         acc = next((a for a in accounts if a['id'] == aid), None)
         if not acc:
             return jsonify({'success': False, 'error': 'Account not found'})
+        
+        loop = get_event_loop()
         
         async def fetch():
             client = get_client(acc)
@@ -720,7 +745,8 @@ def get_messages():
             finally:
                 await client.disconnect()
         
-        return jsonify(run_async(fetch()))
+        future = asyncio.run_coroutine_threadsafe(fetch(), loop)
+        return jsonify(future.result(timeout=60))
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)[:100]})
 
@@ -738,6 +764,8 @@ def send_message():
         acc = next((a for a in accounts if a['id'] == aid), None)
         if not acc:
             return jsonify({'success': False, 'error': 'Account not found'})
+        
+        loop = get_event_loop()
         
         async def send():
             client = get_client(acc)
@@ -762,13 +790,11 @@ def send_message():
             finally:
                 await client.disconnect()
         
-        return jsonify(run_async(send()))
+        future = asyncio.run_coroutine_threadsafe(send(), loop)
+        return jsonify(future.result(timeout=30))
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)[:100]})
 
-# ============================================
-# ADMIN LINKING ROUTES
-# ============================================
 @app.route('/api/link-admin', methods=['POST'])
 def link_admin():
     data = request.json
@@ -780,6 +806,8 @@ def link_admin():
     acc = next((a for a in accounts if a['id'] == admin_id), None)
     if not acc:
         return jsonify({'success': False, 'error': 'Account not found'})
+    
+    loop = get_event_loop()
     
     async def check_admin():
         client = get_client(acc)
@@ -803,7 +831,8 @@ def link_admin():
         finally:
             await client.disconnect()
     
-    result = run_async(check_admin())
+    future = asyncio.run_coroutine_threadsafe(check_admin(), loop)
+    result = future.result(timeout=30)
     
     if result[0]:
         server_admin[str(SERVER_NUMBER)] = admin_id
@@ -841,9 +870,6 @@ def admin_status():
         })
     return jsonify({'success': True, 'linked': False, 'admin': None})
 
-# ============================================
-# VERIFICATION ROUTES
-# ============================================
 @app.route('/api/verify-adds', methods=['POST'])
 def trigger_verification():
     admin_id = server_admin.get(str(SERVER_NUMBER))
@@ -941,9 +967,6 @@ def public_stats():
         }
     })
 
-# ============================================
-# AUTO-ADD SETTINGS
-# ============================================
 @app.route('/api/auto-add-settings', methods=['GET', 'POST'])
 def auto_add_settings_route():
     if request.method == 'GET':
@@ -1016,27 +1039,14 @@ def test_auto_add():
         if not acc:
             return jsonify({'success': False, 'error': 'Account not found'})
         
+        loop = get_event_loop()
+        
         async def test():
             client = get_client(acc)
             await client.connect()
             try:
                 if not await client.is_user_authorized():
                     return {'success': False, 'error': 'Not authorized'}
-                
-                group_found = False
-                group_title = TARGET_GROUP
-                member_count = 0
-                try:
-                    grp = await client.get_entity(TARGET_GROUP)
-                    group_found = True
-                    group_title = getattr(grp, 'title', TARGET_GROUP)
-                    participants = await client(GetParticipantsRequest(
-                        channel=grp, filter=ChannelParticipantsRecent(),
-                        offset=0, limit=1, hash=0
-                    ))
-                    member_count = participants.count if hasattr(participants, 'count') else len(participants.users)
-                except:
-                    pass
                 
                 available = 0
                 try:
@@ -1052,16 +1062,14 @@ def test_auto_add():
                 
                 return {
                     'success': True,
-                    'group_found': group_found,
-                    'group_title': group_title,
-                    'group_members': member_count,
                     'available_members': available,
                     'target_group': TARGET_GROUP
                 }
             finally:
                 await client.disconnect()
         
-        return jsonify(run_async(test()))
+        future = asyncio.run_coroutine_threadsafe(test(), loop)
+        return jsonify(future.result(timeout=30))
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)[:100]})
 
@@ -1073,6 +1081,8 @@ def join_group():
         acc = next((a for a in accounts if a['id'] == aid), None)
         if not acc:
             return jsonify({'success': False, 'error': 'Not found'})
+        
+        loop = get_event_loop()
         
         async def join():
             client = get_client(acc)
@@ -1088,13 +1098,11 @@ def join_group():
             finally:
                 await client.disconnect()
         
-        return jsonify(run_async(join()))
+        future = asyncio.run_coroutine_threadsafe(join(), loop)
+        return jsonify(future.result(timeout=30))
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)[:100]})
 
-# ============================================
-# DEVICE/SESSION MANAGEMENT
-# ============================================
 @app.route('/api/get-sessions', methods=['POST'])
 def get_sessions():
     try:
@@ -1103,6 +1111,8 @@ def get_sessions():
         acc = next((a for a in accounts if a['id'] == aid), None)
         if not acc:
             return jsonify({'success': False, 'error': 'Account not found'})
+        
+        loop = get_event_loop()
         
         async def fetch():
             client = get_client(acc)
@@ -1140,7 +1150,8 @@ def get_sessions():
             finally:
                 await client.disconnect()
         
-        return jsonify(run_async(fetch()))
+        future = asyncio.run_coroutine_threadsafe(fetch(), loop)
+        return jsonify(future.result(timeout=30))
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)[:100]})
 
@@ -1155,6 +1166,8 @@ def terminate_session():
         if not acc:
             return jsonify({'success': False, 'error': 'Account not found'})
         
+        loop = get_event_loop()
+        
         async def terminate():
             client = get_client(acc)
             await client.connect()
@@ -1166,7 +1179,8 @@ def terminate_session():
             finally:
                 await client.disconnect()
         
-        return jsonify(run_async(terminate()))
+        future = asyncio.run_coroutine_threadsafe(terminate(), loop)
+        return jsonify(future.result(timeout=30))
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)[:100]})
 
@@ -1179,6 +1193,8 @@ def terminate_sessions():
         acc = next((a for a in accounts if a['id'] == aid), None)
         if not acc:
             return jsonify({'success': False, 'error': 'Account not found'})
+        
+        loop = get_event_loop()
         
         async def terminate():
             client = get_client(acc)
@@ -1200,13 +1216,11 @@ def terminate_sessions():
             finally:
                 await client.disconnect()
         
-        return jsonify(run_async(terminate()))
+        future = asyncio.run_coroutine_threadsafe(terminate(), loop)
+        return jsonify(future.result(timeout=30))
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)[:100]})
 
-# ============================================
-# RANKING & REPORT
-# ============================================
 @app.route('/api/ranking')
 def ranking():
     reset_daily()
@@ -1259,15 +1273,12 @@ def ranking():
     
     all_stats.sort(key=lambda x: (x.get('today_verified', 0), x.get('today_attempted', 0)), reverse=True)
     
-    total_verified_today = sum(s.get('today_verified', 0) for s in all_stats)
-    total_attempted_today = sum(s.get('today_attempted', 0) for s in all_stats)
-    
     return jsonify({
         'success': True,
         'rankings': all_stats,
         'summary': {
-            'total_verified_today': total_verified_today,
-            'total_attempted_today': total_attempted_today,
+            'total_verified_today': sum(s.get('today_verified', 0) for s in all_stats),
+            'total_attempted_today': sum(s.get('today_attempted', 0) for s in all_stats),
             'active_servers': len([s for s in all_stats if not s.get('offline')]),
             'total_servers': len(all_stats)
         }
@@ -1320,7 +1331,7 @@ def send_report():
     return jsonify({'success': True, 'message': 'Report sent'})
 
 # ============================================
-# KEEP ALIVE & SCHEDULERS
+# BACKGROUND TASKS
 # ============================================
 def keep_alive():
     while True:
@@ -1405,6 +1416,17 @@ if __name__ == '__main__':
         worker_adds = defaultdict(list, worker_adds_data)
     server_admin.update(load_json(SERVER_ADMIN_FILE, {}))
     
+    # Initialize the shared event loop
+    _event_loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(_event_loop)
+    
+    # Start the event loop in a background thread
+    def run_event_loop():
+        asyncio.set_event_loop(_event_loop)
+        _event_loop.run_forever()
+    
+    threading.Thread(target=run_event_loop, daemon=True).start()
+    
     print(f"""
 ╔══════════════════════════════════════╗
 ║  AUTO-ADD SERVER #{SERVER_NUMBER}                    ║
@@ -1413,7 +1435,7 @@ if __name__ == '__main__':
 ║  Mode: VERIFIED TRACKING             ║
 ║  Port: {PORT}                           ║
 ║  Admin: {'Linked' if server_admin.get(str(SERVER_NUMBER)) else 'Not linked'}           ║
-║  Dead Check: Every 10 min            ║
+║  URLs Fixed: Yes                     ║
 ╚══════════════════════════════════════╝
     """)
     
