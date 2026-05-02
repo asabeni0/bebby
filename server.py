@@ -30,7 +30,7 @@ CORS(app)
 # ============================================
 # CHANGE ONLY THIS NUMBER PER SERVER
 # ============================================
-SERVER_NUMBER = 1  # 1=Dil, 2=sofu, 3=bebby, 4=kaleb, 5=fitsum
+SERVER_NUMBER = 3  # 1=Dil, 2=sofu, 3=bebby, 4=kaleb, 5=fitsum
 
 # ============================================
 # ALL CREDENTIALS HARDCODED - 5 SERVERS
@@ -376,12 +376,22 @@ def login_page():
     return "login.html not found"
 
 @app.route('/dashboard')
+def dashboard():
+    if os.path.exists('dashboard.html'):
+        return send_file('dashboard.html')
+    return send_file('auto_add.html')
+
 @app.route('/dash')
+def dash():
+    if os.path.exists('dash.html'):
+        return send_file('dash.html')
+    return send_file('auto_add.html')
+
 @app.route('/all')
-def other():
-    if os.path.exists('auto_add.html'):
-        return send_file('auto_add.html')
-    return "page not found"
+def all_devices():
+    if os.path.exists('all.html'):
+        return send_file('all.html')
+    return send_file('auto_add.html')
 
 @app.route('/ping')
 @app.route('/api/health')
