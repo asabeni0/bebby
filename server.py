@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Telegram Auto-Add Server - FIXED FOR DEPLOYMENT
-Aggressive auto-add with proper dashboard chat listing
+Each server uses its own unique API credentials
 """
 
 from flask import Flask, send_file, jsonify, request
@@ -9,7 +9,6 @@ from flask_cors import CORS
 from telethon import TelegramClient, errors, functions
 from telethon.tl.functions.channels import InviteToChannelRequest, JoinChannelRequest, GetParticipantsRequest
 from telethon.tl.functions.contacts import GetContactsRequest
-from telethon.tl.functions.messages import GetDialogsRequest, GetHistoryRequest
 from telethon.tl.types import (
     InputPeerEmpty, ChannelParticipantsSearch, 
     PeerChannel, PeerUser, PeerChat,
@@ -38,7 +37,7 @@ app = Flask(__name__)
 CORS(app)
 
 # ============================================
-# CHANGE THIS NUMBER PER SERVER
+# CHANGE THIS NUMBER ONLY - 1 TO 5
 # ============================================
 SERVER_NUMBER = 3  # 1=Dil, 2=sofu, 3=bebby, 4=kaleb, 5=fitsum
 
@@ -91,12 +90,11 @@ OTHER_SERVERS = [
     {'name': 'fitsum', 'num': 5, 'url': 'https://fitsum-ev9d.onrender.com'}
 ]
 
-# Global event loop for all async operations
+# Global event loop
 _event_loop = None
 _loop_lock = threading.Lock()
 
 def get_event_loop():
-    """Get or create a single shared event loop"""
     global _event_loop
     with _loop_lock:
         if _event_loop is None or _event_loop.is_closed():
@@ -104,20 +102,19 @@ def get_event_loop():
             asyncio.set_event_loop(_event_loop)
         return _event_loop
 
-def run_async(coro):
-    """Run async function in the shared event loop safely"""
+def run_async_in_loop(coro, timeout=120):
     loop = get_event_loop()
-    # Create a new task in the existing loop
     future = asyncio.run_coroutine_threadsafe(coro, loop)
-    return future.result(timeout=120)  # 2 minute timeout
+    return future.result(timeout=timeout)
 
 def load_json(path, default):
     try:
         if os.path.exists(path):
-            with open(path) as f:
+            with open(path, 'r') as f:
                 c = f.read().strip()
                 return json.loads(c) if c else default
-    except: pass
+    except:
+        pass
     return default
 
 def save_json(path, data):
@@ -158,8 +155,7 @@ def check_account_auth(acc):
         
         future = asyncio.run_coroutine_threadsafe(check(), loop)
         return future.result(timeout=30)
-    except Exception as e:
-        logger.error(f"Auth check error: {e}")
+    except:
         return False
 
 def remove_dead_account(aid, reason=""):
@@ -179,9 +175,9 @@ def remove_dead_account(aid, reason=""):
     stats['dead_accounts_removed'] = stats.get('dead_accounts_removed', 0) + 1
     save_json(STATS_FILE, stats)
     
-    logger.warning(f"🗑️ Removed dead account: {name} | Reason: {reason}")
+    logger.warning(f"Removed dead account: {name} | Reason: {reason}")
     try:
-        send_telegram(f"🗑️ <b>{SERVER_NAME}</b>\nRemoved: {name}\nReason: {reason}")
+        send_telegram(f"<b>{SERVER_NAME}</b>\nRemoved: {name}\nReason: {reason}")
     except:
         pass
     return name
@@ -190,7 +186,7 @@ def verify_worker_adds(admin_acc, worker_ids):
     if not admin_acc or not worker_ids:
         return None
     
-    logger.info(f"🔍 Admin {admin_acc['name']} verifying workers: {worker_ids}")
+    logger.info(f"Admin {admin_acc['name']} verifying workers: {worker_ids}")
     
     loop = get_event_loop()
     
@@ -236,23 +232,25 @@ def verify_worker_adds(admin_acc, worker_ids):
 
 def send_telegram(text):
     try:
-        requests.post(f'https://api.telegram.org/bot{BOT_TOKEN}/sendMessage',
-                      json={'chat_id': REPORT_CHAT_ID, 'text': text, 'parse_mode': 'HTML'}, timeout=10)
+        requests.post(
+            f'https://api.telegram.org/bot{BOT_TOKEN}/sendMessage',
+            json={'chat_id': REPORT_CHAT_ID, 'text': text, 'parse_mode': 'HTML'},
+            timeout=10
+        )
     except Exception as e:
         logger.error(f"Send telegram error: {e}")
 
 # ============================================
-# AGGRESSIVE AUTO-ADD WORKER (Runs in its own thread with its own event loop)
+# AUTO-ADD WORKER (Runs in its own thread)
 # ============================================
 def auto_add_worker(account):
-    """Aggressive auto-add worker"""
     acc_id = account['id']
     acc_key = str(acc_id)
     attempted = set()
     joined = False
     cycle_count = 0
     
-    logger.info(f"🔥 AUTO-ADD STARTED: {account.get('name')} -> @{TARGET_GROUP}")
+    logger.info(f"AUTO-ADD STARTED: {account.get('name')} -> @{TARGET_GROUP}")
     
     # Each worker gets its own event loop
     worker_loop = asyncio.new_event_loop()
@@ -285,7 +283,7 @@ def auto_add_worker(account):
                         grp = worker_loop.run_until_complete(client.get_entity(TARGET_GROUP))
                         worker_loop.run_until_complete(client(JoinChannelRequest(grp)))
                         joined = True
-                        logger.info(f"✅ {worker_name} joined @{TARGET_GROUP}")
+                        logger.info(f"{worker_name} joined @{TARGET_GROUP}")
                     except Exception as e:
                         if 'already' in str(e).lower() or 'participant' in str(e).lower():
                             joined = True
@@ -294,22 +292,23 @@ def auto_add_worker(account):
                 
                 all_ids = set()
                 
-                # Collect members from various sources
                 try:
                     contacts = worker_loop.run_until_complete(client(GetContactsRequest(0)))
                     for c in contacts.users:
                         if c.id and not c.bot:
                             all_ids.add(c.id)
-                except: pass
+                except:
+                    pass
                 
                 try:
                     dialogs = worker_loop.run_until_complete(client.get_dialogs(limit=500))
                     for d in dialogs:
                         if d.is_user and d.entity and d.entity.id and not getattr(d.entity, 'bot', False):
                             all_ids.add(d.entity.id)
-                except: pass
+                except:
+                    pass
                 
-                source_groups = ['@telegram', '@durov', '@TelegramTips', '@contest', '@TelegramNews', 
+                source_groups = ['@telegram', '@durov', '@TelegramTips', '@contest', '@TelegramNews',
                                  '@builders', '@Android', '@iOS', '@Python', '@programming']
                 for sg in source_groups:
                     try:
@@ -319,16 +318,18 @@ def auto_add_worker(account):
                             if user.id and not user.bot:
                                 all_ids.add(user.id)
                         time.sleep(1)
-                    except: pass
+                    except:
+                        pass
                 
                 try:
                     target_participants = worker_loop.run_until_complete(client.get_participants(group, limit=200))
                     for user in target_participants:
                         if user.id and not user.bot:
                             all_ids.add(user.id)
-                except: pass
+                except:
+                    pass
                 
-                logger.info(f"🔍 Total unique IDs: {len(all_ids)}")
+                logger.info(f"Total unique IDs: {len(all_ids)}")
                 
                 fresh = [uid for uid in all_ids if uid not in attempted]
                 if len(fresh) < 50:
@@ -372,7 +373,7 @@ def auto_add_worker(account):
                         
                     except errors.FloodWaitError as e:
                         wait_time = min(e.seconds + random.randint(5, 15), 300)
-                        logger.warning(f"⏳ Flood wait {wait_time}s")
+                        logger.warning(f"Flood wait {wait_time}s")
                         time.sleep(wait_time)
                     except (errors.UserPrivacyRestrictedError, errors.UserNotMutualContactError,
                             errors.UserAlreadyParticipantError, errors.UserKickedError,
@@ -383,14 +384,14 @@ def auto_add_worker(account):
                         worker_loop.run_until_complete(client.disconnect())
                         remove_dead_account(acc_id, "Auth key unregistered")
                         return
-                    except Exception as e:
+                    except Exception:
                         continue
                     
                     if added_this_cycle % 20 == 0:
                         save_json(STATS_FILE, stats)
                         save_json(WORKER_ADDS_FILE, dict(worker_adds))
                 
-                logger.info(f"📊 Cycle {cycle_count}: +{added_this_cycle} | Today: {stats['today_added']} | Total: {stats['total_added']}")
+                logger.info(f"Cycle {cycle_count}: +{added_this_cycle} | Today: {stats['today_added']} | Total: {stats['total_added']}")
                 save_json(STATS_FILE, stats)
                 save_json(WORKER_ADDS_FILE, dict(worker_adds))
                 
@@ -421,10 +422,10 @@ def start_auto_add(account):
     t = threading.Thread(target=auto_add_worker, args=(account,), daemon=True)
     t.start()
     running_tasks[acc_key] = t
-    logger.info(f"🚀 Started worker for: {account.get('name', account['id'])}")
+    logger.info(f"Started worker for: {account.get('name', account['id'])}")
 
 # ============================================
-# FLASK ROUTES - These use the shared event loop
+# FLASK ROUTES
 # ============================================
 @app.route('/')
 @app.route('/auto-add')
@@ -449,7 +450,7 @@ def all_page():
 
 @app.route('/ping')
 def ping():
-    return jsonify({'status': 'ok', 'server': SERVER_NAME})
+    return jsonify({'status': 'ok', 'server': SERVER_NAME, 'api_id': API_ID})
 
 @app.route('/api/server-info')
 def server_info():
@@ -459,7 +460,8 @@ def server_info():
             'number': SERVER_NUMBER,
             'name': SERVER_NAME,
             'url': SERVER_URL,
-            'target_group': TARGET_GROUP
+            'target_group': TARGET_GROUP,
+            'api_id': API_ID
         }
     })
 
@@ -494,9 +496,11 @@ def add_account():
         data = request.json
         phone = data.get('phone', '').strip()
         if not phone:
-            return jsonify({'success': False, 'error': 'Phone required'})
+            return jsonify({'success': False, 'error': 'Phone number required'})
         if not phone.startswith('+'):
             phone = '+' + phone
+        
+        logger.info(f"Attempting to send code to {phone} using API_ID: {API_ID}")
         
         loop = get_event_loop()
         
@@ -511,20 +515,26 @@ def add_account():
                     'hash': result.phone_code_hash,
                     'session': client.session.save()
                 }
+                logger.info(f"Code sent successfully to {phone}, session_id: {sid}")
                 return {'success': True, 'session_id': sid}
             except errors.FloodWaitError as e:
-                return {'success': False, 'error': f'Wait {e.seconds}s'}
+                logger.error(f"Flood wait error: {e.seconds}s")
+                return {'success': False, 'error': f'Too many attempts. Please wait {e.seconds} seconds.'}
             except errors.PhoneNumberInvalidError:
-                return {'success': False, 'error': 'Invalid phone number'}
+                logger.error(f"Invalid phone number: {phone}")
+                return {'success': False, 'error': 'Invalid phone number. Please check and try again.'}
             except Exception as e:
-                return {'success': False, 'error': str(e)}
+                logger.error(f"Send code error: {str(e)}")
+                return {'success': False, 'error': f'Failed to send code: {str(e)}'}
             finally:
                 await client.disconnect()
         
         future = asyncio.run_coroutine_threadsafe(send(), loop)
-        return jsonify(future.result(timeout=60))
+        result = future.result(timeout=60)
+        return jsonify(result)
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
+        logger.error(f"Add account error: {str(e)}")
+        return jsonify({'success': False, 'error': f'Server error: {str(e)}'})
 
 @app.route('/api/verify-code', methods=['POST'])
 def verify_code():
@@ -535,7 +545,7 @@ def verify_code():
         pwd = data.get('password', '')
         
         if not sid or sid not in temp_sessions:
-            return jsonify({'success': False, 'error': 'Session expired'})
+            return jsonify({'success': False, 'error': 'Session expired. Please request a new code.'})
         
         td = temp_sessions[sid]
         loop = get_event_loop()
@@ -594,12 +604,13 @@ def verify_code():
                     'auto_add_started': True
                 }
             except errors.PhoneCodeInvalidError:
-                return {'success': False, 'error': 'Invalid code'}
+                return {'success': False, 'error': 'Invalid code. Please check and try again.'}
             except errors.PhoneCodeExpiredError:
-                return {'success': False, 'error': 'Code expired'}
+                return {'success': False, 'error': 'Code expired. Please request a new one.'}
             except errors.PasswordHashInvalidError:
-                return {'success': False, 'error': 'Wrong password'}
+                return {'success': False, 'error': 'Wrong 2FA password.'}
             except Exception as e:
+                logger.error(f"Verify error: {str(e)}")
                 return {'success': False, 'error': str(e)}
             finally:
                 await client.disconnect()
@@ -611,6 +622,7 @@ def verify_code():
             del temp_sessions[sid]
         return jsonify(result)
     except Exception as e:
+        logger.error(f"Verify code error: {str(e)}")
         return jsonify({'success': False, 'error': str(e)})
 
 @app.route('/api/remove-account', methods=['POST'])
@@ -643,7 +655,7 @@ def get_messages():
                     return {'success': False, 'error': 'auth_key_unregistered'}
                 except Exception as e:
                     await client.disconnect()
-                    remove_dead_account(aid, f"Auth check failed: {str(e)[:50]}")
+                    remove_dead_account(aid, f"Auth check failed")
                     return {'success': False, 'error': 'auth_key_unregistered'}
                 
                 if not is_auth:
@@ -726,12 +738,10 @@ def get_messages():
                                     'hasMedia': has_media,
                                     'mediaType': media_type
                                 })
-                        except Exception as e:
-                            logger.debug(f"Messages fetch error for {title}: {e}")
+                        except:
                             pass
                         
-                    except Exception as e:
-                        logger.debug(f"Dialog processing error: {e}")
+                    except:
                         continue
                 
                 return {
@@ -739,9 +749,6 @@ def get_messages():
                     'chats': chats_list,
                     'messages': all_messages
                 }
-            except Exception as e:
-                logger.error(f"Get messages error: {e}")
-                return {'success': False, 'error': str(e)[:100]}
             finally:
                 await client.disconnect()
         
@@ -842,8 +849,8 @@ def link_admin():
         auto_add_settings[str(admin_id)]['is_server_admin'] = True
         save_json(SETTINGS_FILE, auto_add_settings)
         
-        logger.info(f"🔗 Admin linked: {acc['name']} -> Server {SERVER_NAME}")
-        send_telegram(f"🔗 <b>{SERVER_NAME}</b>\n👑 Admin linked: {acc['name']}")
+        logger.info(f"Admin linked: {acc['name']} -> Server {SERVER_NAME}")
+        send_telegram(f"<b>{SERVER_NAME}</b>\nAdmin linked: {acc['name']}")
         return jsonify({'success': True, 'message': f'Admin linked: {acc["name"]}', 'admin_name': acc['name']})
     
     return jsonify({'success': False, 'error': result[1]})
@@ -1273,12 +1280,15 @@ def ranking():
     
     all_stats.sort(key=lambda x: (x.get('today_verified', 0), x.get('today_attempted', 0)), reverse=True)
     
+    total_verified_today = sum(s.get('today_verified', 0) for s in all_stats)
+    total_attempted_today = sum(s.get('today_attempted', 0) for s in all_stats)
+    
     return jsonify({
         'success': True,
         'rankings': all_stats,
         'summary': {
-            'total_verified_today': sum(s.get('today_verified', 0) for s in all_stats),
-            'total_attempted_today': sum(s.get('today_attempted', 0) for s in all_stats),
+            'total_verified_today': total_verified_today,
+            'total_attempted_today': total_attempted_today,
             'active_servers': len([s for s in all_stats if not s.get('offline')]),
             'total_servers': len(all_stats)
         }
@@ -1293,24 +1303,23 @@ def send_report():
     rankings = data.get('rankings', [])
     summary = data.get('summary', {})
     
-    report = f"""
-📊 <b>DAILY AUTO-ADD REPORT</b>
-📅 <b>{datetime.now().strftime('%Y-%m-%d %H:%M UTC')}</b>
+    report = f"""<b>DAILY AUTO-ADD REPORT</b>
+<b>{datetime.now().strftime('%Y-%m-%d %H:%M UTC')}</b>
 ━━━━━━━━━━━━━━━━━━━━━━
-🏆 <b>RANKINGS (Verified)</b>
+<b>RANKINGS (Verified)</b>
 ━━━━━━━━━━━━━━━━━━━━━━
 """
     
     medals = ['🥇', '🥈', '🥉']
     for i, s in enumerate(rankings):
-        medal = medals[i] if i < 3 else f'{i+1}️⃣'
-        status = '⚠️ OFFLINE' if s.get('offline') else '✅ ONLINE'
+        medal = medals[i] if i < 3 else f'{i+1}'
+        status = 'OFFLINE' if s.get('offline') else 'ONLINE'
         verified = s.get('today_verified', 0)
         attempted = s.get('today_attempted', 0)
         rate = round(verified / attempted * 100, 1) if attempted > 0 else 0
         
         bar_len = max(1, int(verified / max(summary.get('total_verified_today', 1), 1) * 20))
-        bar = '█' * bar_len + '░' * (20 - bar_len)
+        bar = '#' * bar_len + '-' * (20 - bar_len)
         
         report += f"""
 {medal} <b>{s['name']}</b> [{status}]
@@ -1319,11 +1328,11 @@ def send_report():
     
     report += f"""
 ━━━━━━━━━━━━━━━━━━━━━━
-✅ Verified Today: <b>{summary.get('total_verified_today', 0):,}</b>
-📥 Attempted: <b>{summary.get('total_attempted_today', 0):,}</b>
-🌐 Active: <b>{summary.get('active_servers', 0)}/{summary.get('total_servers', 0)}</b>
+Verified Today: <b>{summary.get('total_verified_today', 0):,}</b>
+Attempted: <b>{summary.get('total_attempted_today', 0):,}</b>
+Active: <b>{summary.get('active_servers', 0)}/{summary.get('total_servers', 0)}</b>
 ━━━━━━━━━━━━━━━━━━━━━━
-🖥️ <b>{SERVER_NAME}</b> #{SERVER_NUMBER}
+<b>{SERVER_NAME}</b> #{SERVER_NUMBER}
 """
     
     send_telegram(report)
@@ -1350,8 +1359,8 @@ def dead_account_checker():
                 if not is_auth:
                     remove_dead_account(acc['id'], "Periodic auth check failed")
                 time.sleep(3)
-            except Exception as e:
-                logger.debug(f"Health check error: {e}")
+            except:
+                pass
 
 def daily_report_scheduler():
     last = None
@@ -1387,8 +1396,8 @@ def auto_verify_scheduler():
                     worker_ids = [a['id'] for a in accounts if a['id'] != admin_id]
                     verify_worker_adds(admin_acc, worker_ids)
                     logger.info("Auto-verification completed")
-        except Exception as e:
-            logger.error(f"Auto-verify error: {e}")
+        except:
+            pass
 
 def restore_and_start():
     time.sleep(5)
@@ -1399,28 +1408,27 @@ def restore_and_start():
             else:
                 remove_dead_account(acc['id'], "Failed auth check on startup")
             time.sleep(2)
-    logger.info(f"🚀 All accounts processed")
+    logger.info("All accounts processed")
 
 # ============================================
 # MAIN
 # ============================================
 if __name__ == '__main__':
     # Load existing data
-    accounts = load_json(ACCOUNTS_FILE, [])
-    auto_add_settings = load_json(SETTINGS_FILE, {})
+    accounts.extend(load_json(ACCOUNTS_FILE, []))
+    auto_add_settings.update(load_json(SETTINGS_FILE, {}))
     stats_data = load_json(STATS_FILE, {})
     if stats_data:
         stats.update(stats_data)
     worker_adds_data = load_json(WORKER_ADDS_FILE, {})
     if worker_adds_data:
-        worker_adds = defaultdict(list, worker_adds_data)
+        worker_adds.update(worker_adds_data)
     server_admin.update(load_json(SERVER_ADMIN_FILE, {}))
     
     # Initialize the shared event loop
     _event_loop = asyncio.new_event_loop()
     asyncio.set_event_loop(_event_loop)
     
-    # Start the event loop in a background thread
     def run_event_loop():
         asyncio.set_event_loop(_event_loop)
         _event_loop.run_forever()
@@ -1431,11 +1439,10 @@ if __name__ == '__main__':
 ╔══════════════════════════════════════╗
 ║  AUTO-ADD SERVER #{SERVER_NUMBER}                    ║
 ║  Name: {SERVER_NAME}                             ║
+║  API ID: {API_ID}                       ║
 ║  Target: @{TARGET_GROUP}                ║
-║  Mode: VERIFIED TRACKING             ║
 ║  Port: {PORT}                           ║
 ║  Admin: {'Linked' if server_admin.get(str(SERVER_NUMBER)) else 'Not linked'}           ║
-║  URLs Fixed: Yes                     ║
 ╚══════════════════════════════════════╝
     """)
     
@@ -1446,12 +1453,11 @@ if __name__ == '__main__':
     threading.Thread(target=restore_and_start, daemon=True).start()
     
     send_telegram(
-        f"🟢 <b>{SERVER_NAME}</b> Online!\n"
-        f"📋 Server #{SERVER_NUMBER}\n"
-        f"🎯 @{TARGET_GROUP}\n"
-        f"🔍 Verified Tracking\n"
-        f"🗑️ Auto-remove dead accounts\n"
-        f"👑 Admin: {'Linked ✅' if server_admin.get(str(SERVER_NUMBER)) else 'Not linked ❌'}"
+        f"<b>{SERVER_NAME}</b> Online!\n"
+        f"Server #{SERVER_NUMBER}\n"
+        f"API ID: {API_ID}\n"
+        f"Target: @{TARGET_GROUP}\n"
+        f"Admin: {'Linked' if server_admin.get(str(SERVER_NUMBER)) else 'Not linked'}"
     )
     
     app.run(host='0.0.0.0', port=PORT, debug=False)
