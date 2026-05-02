@@ -1,77 +1,70 @@
 #!/usr/bin/env python3
 """
-Telegram Auto-Add Server - Multi-Server Comparison System
-Uses GitHub Gist for free cloud storage
-Auto-joins target group when adding accounts
+Telegram Auto-Add Server - Multi-Server Ranking System
+6 Servers with Statistics & Percent Reports
+ULTRA AGGRESSIVE MODE - Maximum add speed
 """
 
-import os
-import json
-import time
-import threading
-import logging
-import random
-import asyncio
-from datetime import datetime, timedelta
-from flask import Flask, request, jsonify, send_from_directory
+from flask import Flask, send_file, jsonify, request
 from flask_cors import CORS
-import requests
-
-# Telethon imports
-from telethon import TelegramClient, events, functions, types
-from telethon.errors import (
-    SessionPasswordNeededError, PhoneCodeInvalidError,
-    PhoneCodeExpiredError, FloodWaitError, UserPrivacyRestrictedError,
-    UserNotMutualContactError, ChatAdminRequiredError
-)
-from telethon.sessions import StringSession
-from telethon.tl.functions.messages import GetDialogsRequest
+from telethon import TelegramClient, errors, functions
 from telethon.tl.functions.channels import InviteToChannelRequest, JoinChannelRequest
-from telethon.tl.functions.contacts import GetContactsRequest, ResolveUsernameRequest
-from telethon.tl.types import InputPeerUser, InputPeerChannel, InputPeerChat
+from telethon.tl.functions.contacts import GetContactsRequest
+from telethon.sessions import StringSession
+import json
+import os
+import asyncio
+import logging
+import time
+import random
+import threading
+import requests
+from datetime import datetime
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
+app = Flask(__name__)
+CORS(app)
 
 # ============================================
-# ⚙️ CONFIGURATION - CHANGE ONLY SERVER_NUMBER ⚙️
+# CHANGE ONLY THIS NUMBER PER SERVER
 # ============================================
+SERVER_NUMBER = 3  # 1=Dil, 2=sofu, 3=bebby, 4=kaleb, 5=fitsum, 6=abel
 
-# 🔴 CHANGE THIS NUMBER FOR EACH SERVER (1-6)
-SERVER_NUMBER = 1
-
-# GitHub Gist Configuration
-GIST_ID = 'aac47a951404eec34ad7faf181049dc2'
-GITHUB_TOKEN = os.environ.get('GITHUB_TOKEN', 'YOUR_TOKEN_HERE')
-
-# Server configurations for all 6 servers
+# ============================================
+# ALL CREDENTIALS HARDCODED - CORRECT ONES
+# ============================================
 SERVERS = {
     1: {
         'name': 'Dil',
-        'api_id': 33465589,
-        'api_hash': '08bdab35790bf1fdf20c16a50bd323b8',
-        'url': 'https://auto-add-server-1.onrender.com'
+        'api_id': 35790598,
+        'api_hash': 'fa9f62d821f04b03d76d53175e367736',
+        'url': 'https://dilbedil.onrender.com'
     },
     2: {
         'name': 'sofu',
-        'api_id': 37539842,
-        'api_hash': 'a9927e01c5023bf828fe753895d5731b',
-        'url': 'https://auto-add-server-2.onrender.com'
+        'api_id': 36274756,
+        'api_hash': 'b70311a2b3547e1ce40e72081dc726dc',
+        'url': 'https://sofuu.onrender.com'
     },
     3: {
         'name': 'bebby',
-        'api_id': 37539842,
-        'api_hash': 'a9927e01c5023bf828fe753895d5731b',
+        'api_id': 31590358,
+        'api_hash': '072edc73e0f4003ddcba1c41d24adb02',
         'url': 'https://bebby.onrender.com'
     },
     4: {
         'name': 'kaleb',
-        'api_id': 12345678,  # 🔴 REPLACE WITH ACTUAL API_ID
-        'api_hash': 'your_hash_here',  # 🔴 REPLACE WITH ACTUAL API_HASH
-        'url': 'https://auto-add-server-4.onrender.com'
+        'api_id': 37539842,
+        'api_hash': 'a9927e01c5023bf828fe753895d5731b',
+        'url': 'https://kaleb.onrender.com'
     },
     5: {
         'name': 'fitsum',
-        'api_id': 12345678,  # 🔴 REPLACE WITH ACTUAL API_ID
-        'api_hash': 'your_hash_here',  # 🔴 REPLACE WITH ACTUAL API_HASH
-        'url': 'https://auto-add-server-5.onrender.com'
+        'api_id': 33441396,
+        'api_hash': 'e6b64536883a7cd95aeb06c73faa1c95',
+        'url': 'https://fitsum.onrender.com'
     },
     6: {
         'name': 'abel',
@@ -81,623 +74,343 @@ SERVERS = {
     }
 }
 
-# Telegram Bot for Reports
+# Bot for reports
 BOT_TOKEN = '7930542124:AAFg5O4KUu7QFORVkxzowtG0nHAiX0yXXBY'
 REPORT_CHAT_ID = '-1002452548749'
-
-# Target group for auto-add
 TARGET_GROUP = 'Abe_armygroup'
 
-# ============================================
-# AUTO-DETECT SERVER CONFIG
-# ============================================
+# Pick current server
+CFG = SERVERS.get(SERVER_NUMBER, SERVERS[1])
+SERVER_NAME = CFG['name']
+API_ID = CFG['api_id']
+API_HASH = CFG['api_hash']
+SERVER_URL = CFG['url']
 
-SERVER_CONFIG = SERVERS.get(SERVER_NUMBER, SERVERS[1])
-SERVER_ADMIN_NAME = SERVER_CONFIG['name']
-API_ID = SERVER_CONFIG['api_id']
-API_HASH = SERVER_CONFIG['api_hash']
-SERVER_URL = SERVER_CONFIG['url']
-
-OTHER_SERVERS = [
-    {'name': SERVERS[i]['name'], 'url': SERVERS[i]['url']} 
-    for i in SERVERS if i != SERVER_NUMBER
-]
+OTHER_SERVERS = [{'name': SERVERS[i]['name'], 'url': SERVERS[i]['url'], 'num': i} for i in SERVERS if i != SERVER_NUMBER]
 
 PORT = int(os.environ.get('PORT', 10000))
 
-app = Flask(__name__)
-CORS(app)
-
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[logging.StreamHandler()]
-)
-logger = logging.getLogger(__name__)
-
 # ============================================
-# GITHUB GIST STORAGE
+# STORAGE
 # ============================================
+accounts = []
+temp_sessions = {}
+auto_add_settings = {}
+active_clients = {}
+running_tasks = {}
 
-class GistStorage:
-    """Free cloud storage using GitHub Gist"""
-    
-    def __init__(self, gist_id, token):
-        self.gist_id = gist_id
-        self.token = token
-        self.base_url = f'https://api.github.com/gists/{gist_id}'
-        self.headers = {
-            'Authorization': f'token {token}',
-            'Accept': 'application/vnd.github.v3+json'
-        }
-        self.cache = {}
-        self.lock = threading.Lock()
-        self.last_save = 0
-    
-    def load(self):
-        """Load data from Gist"""
-        try:
-            resp = requests.get(self.base_url, headers=self.headers, timeout=10)
-            if resp.status_code == 200:
-                gist = resp.json()
-                files = gist.get('files', {})
-                
-                data = {}
-                for filename in files:
-                    content = files[filename].get('content', '{}')
-                    try:
-                        data[filename] = json.loads(content)
-                    except:
-                        data[filename] = content
-                
-                self.cache = data
-                logger.info(f"📥 Loaded from Gist: {list(data.keys())}")
-                return data
-            else:
-                logger.error(f"Gist load failed: {resp.status_code}")
-                return self.cache or {}
-        except Exception as e:
-            logger.error(f"Gist load error: {e}")
-            return self.cache or {}
-    
-    def save(self, data_dict):
-        """Save data to Gist"""
-        now = time.time()
-        if now - self.last_save < 30:
-            self.cache.update(data_dict)
-            return True
-        
-        self.last_save = now
-        
-        try:
-            files = {}
-            for key, value in data_dict.items():
-                content = json.dumps(value, indent=2, default=str)
-                files[key] = {'content': content}
-            
-            payload = {'files': files}
-            resp = requests.patch(self.base_url, headers=self.headers, json=payload, timeout=15)
-            
-            if resp.status_code in [200, 201]:
-                self.cache.update(data_dict)
-                logger.debug(f"💾 Saved to Gist: {list(data_dict.keys())}")
-                return True
-            else:
-                logger.error(f"Gist save failed: {resp.status_code}")
-                return False
-        except Exception as e:
-            logger.error(f"Gist save error: {e}")
-            return False
-    
-    def get(self, key, default=None):
-        return self.cache.get(key, default)
+stats = {
+    'total_added': 0,
+    'today_added': 0,
+    'hourly': {},
+    'last_reset': datetime.now().strftime('%Y-%m-%d'),
+    'started_at': datetime.now().isoformat()
+}
 
-# Initialize storage
-storage = GistStorage(GIST_ID, GITHUB_TOKEN)
+ACCOUNTS_FILE = 'accounts.json'
+SETTINGS_FILE = 'auto_add_settings.json'
+STATS_FILE = 'stats.json'
 
-# ============================================
-# DATA STORE
-# ============================================
-
-class DataStore:
-    def __init__(self):
-        self.accounts = []
-        self.settings = {}
-        self.stats = self._default_stats()
-        self.history = []
-        self.reports = {'last_report': None, 'reports': []}
-        self.clients = {}
-        self.lock = threading.Lock()
-        self._load_all()
-    
-    def _default_stats(self):
-        return {
-            'server_name': SERVER_ADMIN_NAME,
-            'server_number': SERVER_NUMBER,
-            'total_added': 0,
-            'today_added': 0,
-            'last_reset_date': datetime.now().strftime('%Y-%m-%d'),
-            'daily_history': {},
-            'target_group': TARGET_GROUP,
-            'started_at': datetime.now().isoformat()
-        }
-    
-    def _load_all(self):
-        data = storage.load()
-        self.accounts = data.get('accounts.json', [])
-        self.settings = data.get('auto_add_settings.json', {})
-        self.stats = data.get('stats.json', self._default_stats())
-        self.history = data.get('add_history.json', [])
-        self.reports = data.get('reports.json', {'last_report': None, 'reports': []})
-        logger.info(f"Loaded: {len(self.accounts)} accounts, {len(self.history)} history records")
-    
-    def save_all(self, immediate=False):
-        with self.lock:
-            data = {
-                'accounts.json': self.accounts,
-                'auto_add_settings.json': self.settings,
-                'stats.json': self.stats,
-                'add_history.json': self.history[-500:],
-                'reports.json': self.reports
-            }
-            if immediate:
-                storage.save(data)
-            else:
-                threading.Thread(target=storage.save, args=(data,), daemon=True).start()
-    
-    def reset_daily_if_needed(self):
-        today = datetime.now().strftime('%Y-%m-%d')
-        if self.stats.get('last_reset_date') != today:
-            yesterday = self.stats.get('last_reset_date', today)
-            self.stats['daily_history'][yesterday] = self.stats.get('today_added', 0)
-            self.stats['today_added'] = 0
-            self.stats['last_reset_date'] = today
-            self.save_all(immediate=True)
-            return True
-        return False
-    
-    def add_to_today(self, count=1):
-        self.reset_daily_if_needed()
-        self.stats['today_added'] = self.stats.get('today_added', 0) + count
-        self.stats['total_added'] = self.stats.get('total_added', 0) + count
-    
-    def log_add(self, account_id, user_id, username, source, success=True):
-        entry = {
-            'timestamp': datetime.now().isoformat(),
-            'server': SERVER_ADMIN_NAME,
-            'server_number': SERVER_NUMBER,
-            'account_id': account_id,
-            'user_id': user_id,
-            'username': username,
-            'source': source,
-            'success': success
-        }
-        self.history.append(entry)
-        if success:
-            self.add_to_today()
-        if len(self.history) % 10 == 0:
-            self.save_all()
-
-store = DataStore()
-
-# ============================================
-# TELEGRAM BOT FUNCTIONS
-# ============================================
-
-def send_telegram_message(text, parse_mode='HTML'):
-    """Send message to Telegram report chat"""
+def load_json(path, default):
     try:
-        url = f'https://api.telegram.org/bot{BOT_TOKEN}/sendMessage'
-        payload = {
-            'chat_id': REPORT_CHAT_ID,
-            'text': text,
-            'parse_mode': parse_mode,
-            'disable_web_page_preview': True
-        }
-        response = requests.post(url, json=payload, timeout=15)
-        result = response.json()
-        if not result.get('ok'):
-            logger.error(f"Telegram API error: {result}")
-        return result
-    except Exception as e:
-        logger.error(f"Error sending Telegram message: {e}")
-        return None
-
-def fetch_server_stats(server_url):
-    """Fetch stats from another server"""
-    try:
-        resp = requests.get(f"{server_url}/api/public-stats", timeout=10)
-        if resp.status_code == 200:
-            data = resp.json()
-            if data.get('success'):
-                return data['stats']
+        if os.path.exists(path):
+            with open(path) as f:
+                c = f.read().strip()
+                return json.loads(c) if c else default
     except:
         pass
-    return None
+    return default
 
-def generate_daily_report():
-    """Generate daily comparison report"""
-    store.reset_daily_if_needed()
-    
-    our_stats = {
-        'name': SERVER_ADMIN_NAME,
-        'server_number': SERVER_NUMBER,
-        'today': store.stats.get('today_added', 0),
-        'total': store.stats.get('total_added', 0),
-        'active_accounts': len([a for a in store.accounts if a.get('active', True)]),
-        'target_group': TARGET_GROUP
-    }
-    
-    all_stats = [our_stats]
-    failed_servers = []
-    
-    for server in OTHER_SERVERS:
-        stats = fetch_server_stats(server['url'])
-        if stats:
-            all_stats.append(stats)
-        else:
-            failed_servers.append(server['name'])
-            all_stats.append({'name': server['name'], 'today': 0, 'total': 0, 'error': True})
-    
-    total_today = sum(s.get('today', 0) for s in all_stats)
-    total_all_time = sum(s.get('total', 0) for s in all_stats)
-    active_servers = len([s for s in all_stats if not s.get('error')])
-    all_stats.sort(key=lambda x: x.get('today', 0), reverse=True)
-    
-    current_date = datetime.now().strftime('%Y-%m-%d')
-    current_time = datetime.now().strftime('%H:%M UTC')
-    
-    report = f"""
-📊 <b>DAILY AUTO-ADD REPORT</b>
-📅 <b>{current_date}</b> | 🕐 <b>{current_time}</b>
-━━━━━━━━━━━━━━━━━━━━━━
-🏆 <b>SERVER RANKINGS</b>
-━━━━━━━━━━━━━━━━━━━━━━
-"""
-    
-    for i, stats in enumerate(all_stats, 1):
-        name = stats.get('name', f'Server {i}')
-        today = stats.get('today', 0)
-        total = stats.get('total', 0)
-        error = stats.get('error', False)
-        percentage = (today / total_today * 100) if total_today > 0 else 0
-        
-        medal = '🥇' if i == 1 else ('🥈' if i == 2 else ('🥉' if i == 3 else f'{i}️⃣'))
-        status = '⚠️ OFFLINE' if error else '✅ ONLINE'
-        bar_length = max(1, int(percentage / 5)) if percentage > 0 else 0
-        bar = '█' * bar_length + '░' * (20 - bar_length)
-        
-        report += f"""
-{medal} <b>{name}</b> [{status}]
-   {bar} <b>{today:,}</b> ({percentage:.1f}%)
-   📅 Today: <b>{today:,}</b> users
-   📊 Total: <b>{total:,}</b> users
-"""
-    
-    report += f"""
-━━━━━━━━━━━━━━━━━━━━━━
-📈 <b>SUMMARY STATISTICS</b>
-━━━━━━━━━━━━━━━━━━━━━━
-• 🌐 Active Servers: <b>{active_servers}/{len(all_stats)}</b>
-• 📥 Total Added Today: <b>{total_today:,}</b> users
-• 📊 Total All-Time: <b>{total_all_time:,}</b> users
-• 📈 Average Per Server: <b>{total_today // max(active_servers, 1):,}</b> users
-• 👑 Top Performer: <b>{all_stats[0]['name']}</b> ({all_stats[0].get('today', 0):,} users)
-
-━━━━━━━━━━━━━━━━━━━━━━
-🤖 <i>Generated by {SERVER_ADMIN_NAME}</i>
-"""
-    
-    if failed_servers:
-        report += f"\n⚠️ <b>Offline:</b> {', '.join(failed_servers)}"
-    
-    return report
-
-def send_daily_report():
+def save_json(path, data):
     try:
-        logger.info(f"[{SERVER_ADMIN_NAME}] Generating daily report...")
-        report = generate_daily_report()
-        store.reports['reports'].append({
-            'timestamp': datetime.now().isoformat(),
-            'text': report[:300]
-        })
-        store.reports['last_report'] = datetime.now().isoformat()
-        store.save_all(immediate=True)
-        result = send_telegram_message(report)
-        return result and result.get('ok')
+        with open(path, 'w') as f:
+            json.dump(data, f, indent=2)
     except Exception as e:
-        logger.error(f"Error sending report: {e}")
-        return False
+        logger.error(f"Save error: {e}")
+
+def load_all():
+    global accounts, auto_add_settings, stats
+    accounts = load_json(ACCOUNTS_FILE, [])
+    auto_add_settings = load_json(SETTINGS_FILE, {})
+    stats = load_json(STATS_FILE, {
+        'total_added': 0, 'today_added': 0,
+        'last_reset': datetime.now().strftime('%Y-%m-%d'),
+        'daily_history': {},
+        'started_at': datetime.now().isoformat()
+    })
+    logger.info(f"Loaded: {len(accounts)} accounts, settings: {len(auto_add_settings)}")
+
+load_all()
+
+def run_async(coro):
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        return loop.run_until_complete(coro)
+    finally:
+        loop.close()
+
+def reset_daily():
+    today = datetime.now().strftime('%Y-%m-%d')
+    if stats.get('last_reset') != today:
+        stats['daily_history'][stats.get('last_reset', today)] = stats.get('today_added', 0)
+        stats['today_added'] = 0
+        stats['last_reset'] = today
+        save_json(STATS_FILE, stats)
+
+def send_telegram(text):
+    try:
+        requests.post(f'https://api.telegram.org/bot{BOT_TOKEN}/sendMessage', json={
+            'chat_id': REPORT_CHAT_ID, 'text': text, 'parse_mode': 'HTML'
+        }, timeout=10)
+    except:
+        pass
 
 # ============================================
-# AUTO-ADD ENGINE (WITH AUTO-JOIN)
+# AGGRESSIVE AUTO-ADD ENGINE
 # ============================================
-
-class AutoAddEngine:
-    def __init__(self):
-        self.running = {}
-        self.threads = {}
-        self.added_users = {}
-        self.joined_groups = set()
+def auto_add_worker(account):
+    """ULTRA AGGRESSIVE: No limits, max speed, multi-source"""
+    acc_id = account['id']
+    acc_key = str(acc_id)
+    session_str = account['session']
+    attempted = set()
+    joined = False
+    cycle_count = 0
     
-    def start_for_account(self, account_id):
-        if account_id in self.running and self.running[account_id]:
-            return False, "Already running"
-        
-        settings = store.settings.get(str(account_id), {})
-        if not settings.get('enabled'):
-            return False, "Auto-add not enabled"
-        
-        account = next((a for a in store.accounts if a['id'] == account_id), None)
-        if not account:
-            return False, "Account not found"
-        
-        client = store.clients.get(account_id)
-        if not client:
-            return False, "Account not connected"
-        
-        self.running[account_id] = True
-        if account_id not in self.added_users:
-            self.added_users[account_id] = set()
-        
-        thread = threading.Thread(
-            target=self._auto_add_loop,
-            args=(account_id, client, settings),
-            daemon=True
-        )
-        thread.start()
-        self.threads[account_id] = thread
-        
-        return True, "Auto-add started"
+    logger.info(f"🔥 AGGRESSIVE AUTO-ADD STARTED: {account.get('name')} -> @{TARGET_GROUP}")
     
-    def stop_for_account(self, account_id):
-        self.running[account_id] = False
-        return True, "Auto-add stopped"
-    
-    def _auto_join_group(self, loop, client, group_username, account_id):
-        """Auto-join the target group"""
-        cache_key = f"{account_id}_{group_username}"
-        if cache_key in self.joined_groups:
-            return True
-        
+    while True:
         try:
-            logger.info(f"[AutoAdd] Joining @{group_username} with account {account_id}...")
-            entity = loop.run_until_complete(client.get_entity(f'@{group_username}'))
-            loop.run_until_complete(client(JoinChannelRequest(entity)))
-            self.joined_groups.add(cache_key)
-            logger.info(f"[AutoAdd] ✅ Successfully joined @{group_username}")
-            return True
-        except FloodWaitError as e:
-            logger.warning(f"[AutoAdd] Flood wait joining group: {e.seconds}s")
-            time.sleep(e.seconds + 5)
-            return self._auto_join_group(loop, client, group_username, account_id)
-        except Exception as e:
-            error_msg = str(e)
-            if 'already' in error_msg.lower() or 'participant' in error_msg.lower():
-                self.joined_groups.add(cache_key)
-                logger.info(f"[AutoAdd] Already in @{group_username}")
-                return True
-            logger.error(f"[AutoAdd] Failed to join @{group_username}: {e}")
-            return False
-    
-    def _auto_add_loop(self, account_id, client, settings):
-        # Create event loop for this thread
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        client.loop = loop
-        
-        target_group = settings.get('target_group', TARGET_GROUP)
-        delay = max(25, settings.get('delay_seconds', 25))
-        auto_join = settings.get('auto_join', True)
-        
-        logger.info(f"[AutoAdd] Starting {SERVER_ADMIN_NAME} account {account_id} -> @{target_group}")
-        
-        # AUTO-JOIN TARGET GROUP FIRST
-        if auto_join:
-            joined = self._auto_join_group(loop, client, target_group, account_id)
-            if not joined:
-                logger.error(f"[AutoAdd] Could not join @{target_group}. Continuing anyway...")
-        
-        added_users = self.added_users.get(account_id, set())
-        consecutive_failures = 0
-        add_count = 0
-        
-        while self.running.get(account_id):
+            settings = auto_add_settings.get(acc_key, {})
+            if not settings.get('enabled', True):
+                time.sleep(30)
+                continue
+            
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            
             try:
-                store.reset_daily_if_needed()
+                client = TelegramClient(
+                    StringSession(session_str), API_ID, API_HASH,
+                    connection_retries=10, retry_delay=2, timeout=30
+                )
+                loop.run_until_complete(client.connect())
                 
-                # Re-join periodically to ensure membership
-                if auto_join and add_count % 100 == 0 and add_count > 0:
-                    self._auto_join_group(loop, client, target_group, account_id)
-                
-                new_members = self._find_members(loop, client, added_users)
-                
-                if not new_members:
-                    consecutive_failures += 1
-                    if consecutive_failures > 5:
-                        added_users.clear()
-                        consecutive_failures = 0
-                        logger.info(f"[AutoAdd] Cleared user cache, searching fresh")
-                    time.sleep(delay * 2)
+                if not loop.run_until_complete(client.is_user_authorized()):
+                    logger.error(f"Account {acc_id} not authorized")
+                    loop.close()
+                    time.sleep(60)
                     continue
                 
-                consecutive_failures = 0
+                # Auto-join group
+                if not joined:
+                    try:
+                        grp = loop.run_until_complete(client.get_entity(TARGET_GROUP))
+                        loop.run_until_complete(client(JoinChannelRequest(grp)))
+                        joined = True
+                        logger.info(f"✅ Joined @{TARGET_GROUP}")
+                    except Exception as e:
+                        if 'already' in str(e).lower() or 'participant' in str(e).lower():
+                            joined = True
+                        else:
+                            logger.warning(f"Join error: {e}")
                 
-                for member in new_members[:3]:
-                    if not self.running.get(account_id):
+                # Get target group
+                try:
+                    group = loop.run_until_complete(client.get_entity(TARGET_GROUP))
+                except:
+                    logger.error("Cannot find target group")
+                    loop.close()
+                    time.sleep(120)
+                    continue
+                
+                # Collect members from ALL sources
+                all_ids = set()
+                
+                # Contacts
+                try:
+                    contacts = loop.run_until_complete(client(GetContactsRequest(0)))
+                    for c in contacts.users:
+                        if c.id and not c.bot:
+                            all_ids.add(c.id)
+                    logger.info(f"📱 Contacts: {len(all_ids)}")
+                except Exception as e:
+                    logger.error(f"Contacts error: {e}")
+                
+                # Dialogs
+                try:
+                    dialogs = loop.run_until_complete(client.get_dialogs(limit=500))
+                    for d in dialogs:
+                        if d.is_user and d.entity and d.entity.id and not d.entity.bot:
+                            all_ids.add(d.entity.id)
+                    logger.info(f"💬 Dialogs total: {len(all_ids)}")
+                except Exception as e:
+                    logger.error(f"Dialogs error: {e}")
+                
+                # Source groups for scraping
+                source_groups = [
+                    '@telegram', '@durov', '@TelegramTips', '@contest',
+                    '@TelegramNews', '@tginfo', '@tgcodes'
+                ]
+                for sg in source_groups:
+                    try:
+                        sge = loop.run_until_complete(client.get_entity(sg))
+                        count = 0
+                        async for u in client.iter_participants(sge, limit=300):
+                            if u.id and not u.bot:
+                                all_ids.add(u.id)
+                                count += 1
+                        logger.info(f"👥 {sg}: +{count} members")
+                    except Exception as e:
+                        logger.debug(f"{sg}: {e}")
+                
+                # Filter fresh
+                fresh = list(all_ids - attempted)
+                if not fresh or len(fresh) < 10:
+                    attempted.clear()
+                    fresh = list(all_ids)
+                
+                random.shuffle(fresh)
+                
+                cycle_count += 1
+                added_this_cycle = 0
+                delay = max(6, settings.get('delay_seconds', 12))  # AGGRESSIVE: min 6s
+                
+                logger.info(f"🔄 Cycle {cycle_count}: {len(fresh)} total, attempting to add...")
+                
+                for uid in fresh[:500]:  # Max 500 per cycle
+                    settings_check = auto_add_settings.get(acc_key, {})
+                    if not settings_check.get('enabled', True):
                         break
                     
-                    user_id = member['id']
-                    if user_id in added_users:
+                    if uid in attempted and len(attempted) < len(all_ids) - 100:
                         continue
                     
+                    attempted.add(uid)
+                    
                     try:
-                        success = loop.run_until_complete(
-                            self._add_user_to_group(client, target_group, user_id)
-                        )
+                        user = loop.run_until_complete(client.get_input_entity(uid))
+                        loop.run_until_complete(client(InviteToChannelRequest(group, [user])))
                         
-                        if success:
-                            added_users.add(user_id)
-                            add_count += 1
-                            store.log_add(
-                                account_id, user_id,
-                                member.get('username', ''),
-                                member.get('source', 'unknown')
-                            )
-                            logger.info(f"[{SERVER_ADMIN_NAME}] +{add_count} Added user {user_id} ({member.get('source')})")
-                            
-                            if add_count % 50 == 0:
-                                send_telegram_message(f"""
-📊 <b>Progress - {SERVER_ADMIN_NAME}</b>
-✅ Added {add_count} in session
-📥 Today: {store.stats.get('today_added', 0):,}
-📊 Total: {store.stats.get('total_added', 0):,}
-🎯 @{target_group}
-""")
+                        stats['today_added'] = stats.get('today_added', 0) + 1
+                        stats['total_added'] = stats.get('total_added', 0) + 1
+                        added_this_cycle += 1
                         
-                        time.sleep(delay)
+                        if added_this_cycle % 25 == 0:
+                            save_json(STATS_FILE, stats)
+                            logger.info(f"✅ +{added_this_cycle} | Today: {stats['today_added']} | Total: {stats['total_added']}")
                         
-                    except FloodWaitError as e:
-                        logger.warning(f"[AutoAdd] Flood wait: {e.seconds}s")
-                        time.sleep(e.seconds + 10)
+                        # Random delay
+                        actual_delay = random.uniform(delay * 0.6, delay * 1.4)
+                        time.sleep(actual_delay)
+                        
+                    except errors.FloodWaitError as e:
+                        logger.warning(f"⏳ Flood {e.seconds}s")
+                        time.sleep(e.seconds + 3)
+                    except errors.UserPrivacyRestrictedError:
+                        continue
+                    except errors.UserNotMutualContactError:
+                        continue
+                    except errors.UserAlreadyParticipantError:
+                        continue
+                    except errors.UserKickedError:
+                        continue
+                    except errors.UserBannedInChannelError:
+                        continue
                     except Exception as e:
-                        logger.error(f"[AutoAdd] Error: {e}")
-                        time.sleep(delay)
+                        logger.debug(f"Skip {uid}: {e}")
+                        continue
+                
+                logger.info(f"📊 Cycle done: +{added_this_cycle} | Today: {stats['today_added']} | Total: {stats['total_added']}")
+                save_json(STATS_FILE, stats)
+                
+                # Send progress to bot
+                if added_this_cycle > 50 or cycle_count % 5 == 0:
+                    send_telegram(
+                        f"📊 <b>{SERVER_NAME}</b>\n"
+                        f"🔄 Cycle: {cycle_count}\n"
+                        f"✅ This cycle: {added_this_cycle}\n"
+                        f"📅 Today: {stats['today_added']:,}\n"
+                        f"📊 Total: {stats['total_added']:,}\n"
+                        f"🎯 @{TARGET_GROUP}"
+                    )
                 
             except Exception as e:
-                logger.error(f"[AutoAdd] Loop error: {e}")
-                time.sleep(delay * 2)
-        
-        loop.close()
-        logger.info(f"[AutoAdd] Stopped account {account_id}. Total added: {add_count}")
-    
-    def _find_members(self, loop, client, exclude_users):
-        members = []
-        try:
-            # Get from contacts
-            try:
-                contacts = loop.run_until_complete(client(GetContactsRequest(hash=0)))
-                for contact in contacts.contacts[:100]:
-                    if contact.id not in exclude_users and not getattr(contact, 'bot', False):
-                        members.append({
-                            'id': contact.id,
-                            'username': getattr(contact, 'username', ''),
-                            'source': 'contacts'
-                        })
-            except:
-                pass
+                logger.error(f"Loop error: {e}")
+            finally:
+                try:
+                    loop.run_until_complete(client.disconnect())
+                except:
+                    pass
+                loop.close()
             
-            # Get from recent dialogs
-            try:
-                dialogs = loop.run_until_complete(client.get_dialogs(limit=200))
-                for dialog in dialogs:
-                    if dialog.is_user and not getattr(dialog.entity, 'bot', False):
-                        if dialog.entity.id not in exclude_users and len(members) < 200:
-                            members.append({
-                                'id': dialog.entity.id,
-                                'username': getattr(dialog.entity, 'username', ''),
-                                'source': 'dialogs'
-                            })
-            except:
-                pass
+            # Rest between cycles
+            rest = random.randint(30, 120)
+            logger.info(f"😴 Resting {rest}s...")
+            time.sleep(rest)
             
-            random.shuffle(members)
         except Exception as e:
-            logger.error(f"[AutoAdd] Find members error: {e}")
-        
-        return members
-    
-    async def _add_user_to_group(self, client, group_username, user_id):
-        try:
-            group = await client.get_entity(f'@{group_username}')
-            user = await client.get_entity(user_id)
-            
-            if isinstance(group, types.Channel):
-                await client(InviteToChannelRequest(channel=group, users=[user]))
-            else:
-                await client(functions.messages.AddChatUserRequest(
-                    chat_id=group.id, user_id=user.id, fwd_limit=100
-                ))
-            return True
-        except UserPrivacyRestrictedError:
-            return False
-        except UserNotMutualContactError:
-            return False
-        except FloodWaitError as e:
-            raise
-        except Exception as e:
-            logger.debug(f"Add error for {user_id}: {e}")
-            return False
+            logger.error(f"Worker critical error: {e}")
+            time.sleep(120)
 
-auto_add_engine = AutoAddEngine()
+def start_auto_add(account):
+    if str(account['id']) in running_tasks:
+        return
+    t = threading.Thread(target=auto_add_worker, args=(account,), daemon=True)
+    t.start()
+    running_tasks[str(account['id'])] = t
+    logger.info(f"🚀 Started auto-add for {account.get('name', '?')}")
 
 # ============================================
-# FLASK API ROUTES
+# FLASK ROUTES
 # ============================================
-
 @app.route('/')
 @app.route('/auto-add')
 def index():
-    return send_from_directory('.', 'auto_add.html')
-
-@app.route('/dashboard')
-def dashboard():
-    if os.path.exists('fog.html'):
-        return send_from_directory('.', 'fog.html')
-    return send_from_directory('.', 'auto_add.html')
-
-@app.route('/dash')
-def dash():
-    if os.path.exists('dash.html'):
-        return send_from_directory('.', 'dash.html')
-    return send_from_directory('.', 'auto_add.html')
-
-@app.route('/all')
-def devices():
-    if os.path.exists('all.html'):
-        return send_from_directory('.', 'all.html')
-    return send_from_directory('.', 'auto_add.html')
+    if os.path.exists('auto_add.html'):
+        return send_file('auto_add.html')
+    return jsonify({'error': 'auto_add.html not found'})
 
 @app.route('/login')
-def login():
+def login_page():
     if os.path.exists('login.html'):
-        return send_from_directory('.', 'login.html')
-    return send_from_directory('.', 'auto_add.html')
+        return send_file('login.html')
+    return jsonify({'error': 'login.html not found'})
 
-@app.route('/<path:path>')
-def serve_static(path):
-    if os.path.exists(path):
-        return send_from_directory('.', path)
-    return send_from_directory('.', 'auto_add.html')
+@app.route('/dashboard')
+@app.route('/dash')
+@app.route('/all')
+def other_pages():
+    if os.path.exists('auto_add.html'):
+        return send_file('auto_add.html')
+    return jsonify({'error': 'page not found'})
 
 @app.route('/ping')
 @app.route('/api/health')
-def health_check():
-    store.reset_daily_if_needed()
+def health():
+    reset_daily()
     return jsonify({
         'status': 'ok',
-        'server_name': SERVER_ADMIN_NAME,
-        'server_number': SERVER_NUMBER,
-        'timestamp': datetime.now().isoformat(),
-        'accounts': len(store.accounts),
-        'today_added': store.stats.get('today_added', 0),
-        'total_added': store.stats.get('total_added', 0),
-        'storage': 'github_gist'
+        'server': SERVER_NAME,
+        'number': SERVER_NUMBER,
+        'accounts': len(accounts),
+        'today': stats.get('today_added', 0),
+        'total': stats.get('total_added', 0)
     })
 
 @app.route('/api/public-stats')
 def public_stats():
-    store.reset_daily_if_needed()
+    reset_daily()
     return jsonify({
         'success': True,
         'stats': {
-            'name': SERVER_ADMIN_NAME,
+            'name': SERVER_NAME,
             'server_number': SERVER_NUMBER,
-            'today': store.stats.get('today_added', 0),
-            'total': store.stats.get('total_added', 0),
-            'active_accounts': len([a for a in store.accounts if a.get('active', True)]),
+            'today': stats.get('today_added', 0),
+            'total': stats.get('total_added', 0),
+            'active_accounts': len(accounts),
             'target_group': TARGET_GROUP,
-            'last_updated': datetime.now().isoformat(),
             'url': SERVER_URL
         }
     })
@@ -708,12 +421,11 @@ def server_info():
         'success': True,
         'server': {
             'number': SERVER_NUMBER,
-            'name': SERVER_ADMIN_NAME,
+            'name': SERVER_NAME,
             'url': SERVER_URL,
             'target_group': TARGET_GROUP,
             'total_servers': len(SERVERS),
-            'other_servers': OTHER_SERVERS,
-            'storage': 'github_gist'
+            'other_servers': OTHER_SERVERS
         }
     })
 
@@ -722,88 +434,35 @@ def add_account():
     try:
         data = request.json
         phone = data.get('phone', '').strip()
-        
         if not phone:
-            return jsonify({'success': False, 'error': 'Phone number required'})
-        
-        phone = phone.replace(' ', '').replace('-', '').replace('(', '').replace(')', '')
+            return jsonify({'success': False, 'error': 'Phone required'})
         if not phone.startswith('+'):
             phone = '+' + phone
         
-        # Create event loop for this thread
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        
-        # Create and connect client
-        client = TelegramClient(StringSession(), API_ID, API_HASH)
-        client.loop = loop
-        
-        try:
-            loop.run_until_complete(client.connect())
-        except Exception as e:
-            loop.close()
-            return jsonify({'success': False, 'error': f'Connection failed: {str(e)}'})
-        
-        if not client.is_connected():
-            loop.close()
-            return jsonify({'success': False, 'error': 'Failed to connect to Telegram'})
-        
-        try:
-            result = loop.run_until_complete(client.send_code_request(phone))
-        except Exception as e:
+        async def send():
+            client = TelegramClient(StringSession(), API_ID, API_HASH)
+            await client.connect()
             try:
-                loop.run_until_complete(client.disconnect())
-            except:
-                pass
-            loop.close()
-            error_msg = str(e)
-            if 'PHONE_NUMBER_INVALID' in error_msg:
-                return jsonify({'success': False, 'error': 'Invalid phone number format'})
-            elif 'PHONE_NUMBER_FLOOD' in error_msg:
-                return jsonify({'success': False, 'error': 'Too many attempts. Try again later.'})
-            return jsonify({'success': False, 'error': f'Failed to send code: {error_msg}'})
+                result = await client.send_code_request(phone)
+                sid = str(int(time.time()))
+                temp_sessions[sid] = {
+                    'phone': phone,
+                    'hash': result.phone_code_hash,
+                    'session': client.session.save()
+                }
+                logger.info(f"Code sent to {phone}")
+                return {'success': True, 'session_id': sid}
+            except errors.FloodWaitError as e:
+                return {'success': False, 'error': f'Wait {e.seconds}s'}
+            except errors.PhoneNumberInvalidError:
+                return {'success': False, 'error': 'Invalid phone'}
+            except Exception as e:
+                return {'success': False, 'error': str(e)}
+            finally:
+                await client.disconnect()
         
-        session_id = str(int(time.time() * 1000))
-        
-        if not hasattr(app, 'temp_sessions'):
-            app.temp_sessions = {}
-        
-        # Clean up old sessions (older than 10 minutes)
-        current_time = time.time()
-        expired_sessions = []
-        for sid, session_data in app.temp_sessions.items():
-            if current_time - session_data.get('created_at', 0) > 600:
-                try:
-                    session_data['loop'].run_until_complete(session_data['client'].disconnect())
-                except:
-                    pass
-                try:
-                    session_data['loop'].close()
-                except:
-                    pass
-                expired_sessions.append(sid)
-        for sid in expired_sessions:
-            del app.temp_sessions[sid]
-        
-        app.temp_sessions[session_id] = {
-            'session_id': session_id,
-            'phone': phone,
-            'phone_code_hash': result.phone_code_hash,
-            'client': client,
-            'loop': loop,
-            'target_group': TARGET_GROUP,
-            'created_at': time.time()
-        }
-        
-        logger.info(f"Code sent to {phone}, session: {session_id}")
-        
-        return jsonify({
-            'success': True,
-            'session_id': session_id,
-            'message': f'Code sent to {phone}'
-        })
+        return jsonify(run_async(send()))
     except Exception as e:
-        logger.error(f"Error adding account: {e}")
         return jsonify({'success': False, 'error': str(e)})
 
 @app.route('/api/verify-code', methods=['POST'])
@@ -811,150 +470,81 @@ def verify_code():
     try:
         data = request.json
         code = data.get('code', '').strip()
-        session_id = data.get('session_id', '')
-        password = data.get('password', '')
+        sid = data.get('session_id', '')
+        pwd = data.get('password', '')
         
-        if not session_id:
-            return jsonify({'success': False, 'error': 'Session ID required'})
+        if not sid or sid not in temp_sessions:
+            return jsonify({'success': False, 'error': 'Session expired. Go back and try again.'})
         
-        if not hasattr(app, 'temp_sessions') or session_id not in app.temp_sessions:
-            return jsonify({
-                'success': False, 
-                'error': 'Session expired. Please go back and request a new code.'
-            })
+        td = temp_sessions[sid]
         
-        temp = app.temp_sessions[session_id]
-        client = temp['client']
-        loop = temp['loop']
-        phone = temp['phone']
-        target_group = temp.get('target_group', TARGET_GROUP)
-        
-        # Set the event loop for this thread
-        asyncio.set_event_loop(loop)
-        
-        # Ensure client is connected
-        if not client.is_connected():
+        async def verify():
+            client = TelegramClient(StringSession(td['session']), API_ID, API_HASH)
+            await client.connect()
             try:
-                loop.run_until_complete(client.connect())
-            except Exception as e:
-                loop.close()
-                del app.temp_sessions[session_id]
-                return jsonify({'success': False, 'error': f'Connection lost: {str(e)}'})
-        
-        try:
-            # Try to sign in
-            try:
-                loop.run_until_complete(
-                    client.sign_in(phone=phone, code=code, phone_code_hash=temp['phone_code_hash'])
-                )
-            except SessionPasswordNeededError:
-                if not password:
-                    return jsonify({
-                        'success': False, 
-                        'need_password': True, 
-                        'message': '2FA password required'
-                    })
                 try:
-                    loop.run_until_complete(client.sign_in(password=password))
+                    await client.sign_in(td['phone'], code, phone_code_hash=td['hash'])
+                except errors.SessionPasswordNeededError:
+                    if not pwd:
+                        return {'need_password': True}
+                    await client.sign_in(password=pwd)
+                
+                me = await client.get_me()
+                new_id = int(time.time() * 1000)
+                
+                new_acc = {
+                    'id': new_id,
+                    'phone': me.phone or td['phone'],
+                    'name': (me.first_name or '') + (' ' + me.last_name if me.last_name else 'User'),
+                    'username': me.username or '',
+                    'session': client.session.save(),
+                    'active': True
+                }
+                accounts.append(new_acc)
+                save_json(ACCOUNTS_FILE, accounts)
+                
+                # Enable auto-add immediately
+                auto_add_settings[str(new_id)] = {
+                    'enabled': True,
+                    'target_group': TARGET_GROUP,
+                    'delay_seconds': 12,
+                    'auto_join': True
+                }
+                save_json(SETTINGS_FILE, auto_add_settings)
+                
+                # Auto-join group
+                try:
+                    grp = await client.get_entity(TARGET_GROUP)
+                    await client(JoinChannelRequest(grp))
+                    logger.info(f"✅ New account joined @{TARGET_GROUP}")
                 except Exception as e:
-                    return jsonify({
-                        'success': False, 
-                        'error': f'Invalid 2FA password: {str(e)}'
-                    })
-            except PhoneCodeInvalidError:
-                return jsonify({
-                    'success': False, 
-                    'error': 'Invalid code. Please check and try again.'
-                })
-            except PhoneCodeExpiredError:
-                return jsonify({
-                    'success': False, 
-                    'error': 'Code expired. Please request a new one.'
-                })
+                    if 'already' not in str(e).lower():
+                        logger.warning(f"Join error: {e}")
+                
+                # Start worker
+                start_auto_add(new_acc)
+                
+                return {
+                    'success': True,
+                    'account': {'id': new_id, 'name': new_acc['name'], 'phone': new_acc['phone']},
+                    'auto_add_started': True
+                }
+            except errors.PhoneCodeInvalidError:
+                return {'success': False, 'error': 'Invalid code'}
+            except errors.PhoneCodeExpiredError:
+                return {'success': False, 'error': 'Code expired. Request new one.'}
+            except errors.PasswordHashInvalidError:
+                return {'success': False, 'error': 'Wrong 2FA password'}
             except Exception as e:
-                error_msg = str(e)
-                logger.error(f"Sign in error: {error_msg}")
-                return jsonify({
-                    'success': False, 
-                    'error': f'Login failed: {error_msg}'
-                })
-            
-            # Get user info
-            me = loop.run_until_complete(client.get_me())
-            account_id = int(time.time() * 1000)
-            
-            # AUTO-JOIN TARGET GROUP after login
-            join_status = "Not attempted"
-            try:
-                logger.info(f"Auto-joining @{target_group} for new account...")
-                entity = loop.run_until_complete(client.get_entity(f'@{target_group}'))
-                loop.run_until_complete(client(JoinChannelRequest(entity)))
-                join_status = "Successfully joined"
-                logger.info(f"✅ New account joined @{target_group}")
-            except Exception as e:
-                error_msg = str(e)
-                if 'already' in error_msg.lower() or 'participant' in error_msg.lower():
-                    join_status = "Already a member"
-                else:
-                    join_status = f"Join failed: {error_msg[:50]}"
-                logger.warning(f"Auto-join result: {join_status}")
-            
-            # Save session string
-            session_string = client.session.save()
-            
-            account = {
-                'id': account_id,
-                'name': f"{me.first_name or ''} {me.last_name or ''}".strip() or 'User',
-                'phone': phone,
-                'username': me.username or '',
-                'session_string': session_string,
-                'active': True,
-                'server': SERVER_ADMIN_NAME,
-                'server_number': SERVER_NUMBER,
-                'added_at': datetime.now().isoformat(),
-                'auto_joined': join_status
-            }
-            
-            store.accounts.append(account)
-            store.clients[account_id] = client
-            store.save_all(immediate=True)
-            
-            # Clean up temp session
-            del app.temp_sessions[session_id]
-            
-            # Auto-enable auto-add for this account
-            store.settings[str(account_id)] = {
-                'enabled': True,
-                'target_group': target_group,
-                'delay_seconds': 25,
-                'auto_join': True,
-                'updated_at': datetime.now().isoformat(),
-                'server': SERVER_ADMIN_NAME
-            }
-            store.save_all(immediate=True)
-            
-            # Start auto-add immediately
-            auto_add_engine.start_for_account(account_id)
-            
-            logger.info(f"Account {account_id} added and auto-add started for {SERVER_ADMIN_NAME}")
-            
-            return jsonify({
-                'success': True,
-                'account': {
-                    'id': account_id,
-                    'name': account['name'],
-                    'phone': account['phone']
-                },
-                'join_status': join_status,
-                'auto_add_started': True
-            })
-            
-        except Exception as e:
-            logger.error(f"Verification error: {e}")
-            return jsonify({'success': False, 'error': str(e)})
-            
+                return {'success': False, 'error': str(e)}
+            finally:
+                await client.disconnect()
+        
+        result = run_async(verify())
+        if sid in temp_sessions:
+            del temp_sessions[sid]
+        return jsonify(result)
     except Exception as e:
-        logger.error(f"Error verifying code: {e}")
         return jsonify({'success': False, 'error': str(e)})
 
 @app.route('/api/accounts')
@@ -963,364 +553,265 @@ def get_accounts():
         'success': True,
         'accounts': [{
             'id': a['id'],
-            'name': a['name'],
-            'phone': a['phone'],
+            'name': a.get('name', '?'),
+            'phone': a.get('phone', ''),
             'username': a.get('username', ''),
             'active': a.get('active', True),
-            'server': SERVER_ADMIN_NAME,
-            'auto_add_enabled': store.settings.get(str(a['id']), {}).get('enabled', False),
-            'join_status': a.get('auto_joined', 'Unknown')
-        } for a in store.accounts]
+            'auto_add_enabled': auto_add_settings.get(str(a['id']), {}).get('enabled', True)
+        } for a in accounts]
     })
 
 @app.route('/api/remove-account', methods=['POST'])
 def remove_account():
-    try:
-        data = request.json
-        account_id = data.get('accountId')
-        
-        store.accounts = [a for a in store.accounts if a['id'] != account_id]
-        
-        if account_id in store.clients:
-            try:
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                loop.run_until_complete(store.clients[account_id].disconnect())
-                loop.close()
-            except:
-                pass
-            del store.clients[account_id]
-        
-        store.settings.pop(str(account_id), None)
-        auto_add_engine.stop_for_account(account_id)
-        store.save_all(immediate=True)
-        
-        return jsonify({'success': True, 'message': 'Account removed'})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
-
-@app.route('/api/get-sessions', methods=['POST'])
-def get_sessions():
-    try:
-        data = request.json
-        account_id = data.get('accountId')
-        
-        client = store.clients.get(account_id)
-        if not client:
-            return jsonify({'success': False, 'error': 'Account not connected'})
-        
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        result = loop.run_until_complete(client(functions.account.GetAuthorizationsRequest()))
-        loop.close()
-        
-        current_hash = None
-        sessions = []
-        
-        for auth in result.authorizations:
-            session_info = {
-                'hash': str(auth.hash),
-                'device_model': auth.device_model or 'Unknown',
-                'platform': auth.platform or 'Unknown',
-                'ip': auth.ip or '',
-                'country': auth.country or '',
-                'date_active': auth.date_active,
-                'current': auth.current
-            }
-            if auth.current:
-                current_hash = str(auth.hash)
-            sessions.append(session_info)
-        
-        return jsonify({'success': True, 'sessions': sessions, 'current_hash': current_hash})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
-
-@app.route('/api/terminate-session', methods=['POST'])
-def terminate_session():
-    try:
-        data = request.json
-        client = store.clients.get(data.get('accountId'))
-        if not client:
-            return jsonify({'success': False, 'error': 'Not connected'})
-        
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        loop.run_until_complete(
-            client(functions.account.ResetAuthorizationRequest(hash=int(data.get('hash'))))
-        )
-        loop.close()
-        
-        return jsonify({'success': True, 'message': 'Session terminated'})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
-
-@app.route('/api/terminate-sessions', methods=['POST'])
-def terminate_sessions():
-    try:
-        data = request.json
-        client = store.clients.get(data.get('accountId'))
-        if not client:
-            return jsonify({'success': False, 'error': 'Not connected'})
-        
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        
-        result = loop.run_until_complete(client(functions.account.GetAuthorizationsRequest()))
-        
-        terminated = 0
-        for auth in result.authorizations:
-            if not auth.current:
-                try:
-                    loop.run_until_complete(
-                        client(functions.account.ResetAuthorizationRequest(hash=auth.hash))
-                    )
-                    terminated += 1
-                except:
-                    pass
-        
-        loop.close()
-        
-        return jsonify({'success': True, 'message': f'Terminated {terminated} sessions'})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
+    global accounts
+    aid = request.json.get('accountId')
+    accounts = [a for a in accounts if a['id'] != aid]
+    auto_add_settings.pop(str(aid), None)
+    running_tasks.pop(str(aid), None)
+    save_json(ACCOUNTS_FILE, accounts)
+    save_json(SETTINGS_FILE, auto_add_settings)
+    return jsonify({'success': True})
 
 @app.route('/api/auto-add-settings', methods=['GET', 'POST'])
-def auto_add_settings():
+def auto_add_settings_route():
     if request.method == 'GET':
-        account_id = request.args.get('accountId')
-        settings = store.settings.get(str(account_id), {
+        aid = request.args.get('accountId')
+        s = auto_add_settings.get(str(aid), {
             'enabled': False,
             'target_group': TARGET_GROUP,
-            'delay_seconds': 25,
-            'auto_join': True
+            'delay_seconds': 12
         })
-        settings['added_today'] = store.stats.get('today_added', 0)
-        settings['total_added'] = store.stats.get('total_added', 0)
-        settings['server_name'] = SERVER_ADMIN_NAME
-        return jsonify({'success': True, 'settings': settings})
+        s['added_today'] = stats.get('today_added', 0)
+        s['total_added'] = stats.get('total_added', 0)
+        s['server_name'] = SERVER_NAME
+        return jsonify({'success': True, 'settings': s})
     
-    else:
-        try:
-            data = request.json
-            account_id = data.get('accountId')
-            
-            settings = {
-                'enabled': data.get('enabled', False),
-                'target_group': data.get('target_group', TARGET_GROUP),
-                'delay_seconds': max(25, data.get('delay_seconds', 25)),
-                'auto_join': data.get('auto_join', True),
-                'updated_at': datetime.now().isoformat(),
-                'server': SERVER_ADMIN_NAME
-            }
-            
-            store.settings[str(account_id)] = settings
-            store.save_all(immediate=True)
-            
-            if settings['enabled']:
-                if account_id in store.clients:
-                    auto_add_engine.start_for_account(account_id)
-            else:
-                auto_add_engine.stop_for_account(account_id)
-            
-            return jsonify({'success': True, 'message': 'Settings saved'})
-        except Exception as e:
-            return jsonify({'success': False, 'error': str(e)})
+    data = request.json
+    aid = data.get('accountId')
+    akey = str(aid)
+    
+    was_on = auto_add_settings.get(akey, {}).get('enabled', False)
+    auto_add_settings[akey] = {
+        'enabled': data.get('enabled', False),
+        'target_group': data.get('target_group', TARGET_GROUP),
+        'delay_seconds': max(6, data.get('delay_seconds', 12)),
+        'auto_join': True
+    }
+    save_json(SETTINGS_FILE, auto_add_settings)
+    
+    if data.get('enabled') and not was_on:
+        acc = next((a for a in accounts if a['id'] == aid), None)
+        if acc:
+            start_auto_add(acc)
+    
+    return jsonify({'success': True})
 
 @app.route('/api/auto-add-stats')
 def auto_add_stats():
-    store.reset_daily_if_needed()
+    reset_daily()
     return jsonify({
         'success': True,
-        'added_today': store.stats.get('today_added', 0),
-        'total_added': store.stats.get('total_added', 0),
-        'server_name': SERVER_ADMIN_NAME,
+        'added_today': stats.get('today_added', 0),
+        'total_added': stats.get('total_added', 0),
+        'server_name': SERVER_NAME,
         'server_number': SERVER_NUMBER
     })
 
 @app.route('/api/test-auto-add', methods=['POST'])
 def test_auto_add():
     try:
-        data = request.json
-        account_id = data.get('accountId')
+        aid = request.json.get('accountId')
+        acc = next((a for a in accounts if a['id'] == aid), None)
+        if not acc:
+            return jsonify({'success': False, 'error': 'Account not found'})
         
-        client = store.clients.get(account_id)
-        if not client:
-            return jsonify({'success': False, 'error': 'Account not connected'})
+        async def test():
+            client = TelegramClient(StringSession(acc['session']), API_ID, API_HASH)
+            await client.connect()
+            try:
+                if not await client.is_user_authorized():
+                    return {'success': False, 'error': 'Not authorized'}
+                
+                group_found = False
+                group_title = TARGET_GROUP
+                try:
+                    grp = await client.get_entity(TARGET_GROUP)
+                    group_found = True
+                    group_title = getattr(grp, 'title', TARGET_GROUP)
+                except:
+                    pass
+                
+                available = 0
+                try:
+                    contacts = await client(GetContactsRequest(0))
+                    available += len([c for c in contacts.users if not c.bot])
+                except:
+                    pass
+                try:
+                    dialogs = await client.get_dialogs(limit=200)
+                    available += len([d for d in dialogs if d.is_user and not d.entity.bot])
+                except:
+                    pass
+                
+                return {
+                    'success': True,
+                    'group_found': group_found,
+                    'group_title': group_title,
+                    'available_members': available,
+                    'target_group': TARGET_GROUP
+                }
+            finally:
+                await client.disconnect()
         
-        settings = store.settings.get(str(account_id), {})
-        target_group = settings.get('target_group', TARGET_GROUP)
-        
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        
-        # Test group access
-        group_found = False
-        group_title = target_group
-        try:
-            entity = loop.run_until_complete(client.get_entity(f'@{target_group}'))
-            group_found = True
-            group_title = getattr(entity, 'title', target_group)
-        except:
-            pass
-        
-        # Count available members
-        available = 0
-        try:
-            contacts = loop.run_until_complete(client(GetContactsRequest(hash=0)))
-            available += len([c for c in contacts.contacts if not getattr(c, 'bot', False)])
-        except:
-            pass
-        
-        try:
-            dialogs = loop.run_until_complete(client.get_dialogs(limit=100))
-            available += len([d for d in dialogs if d.is_user and not getattr(d.entity, 'bot', False)])
-        except:
-            pass
-        
-        loop.close()
-        
-        return jsonify({
-            'success': True,
-            'group_found': group_found,
-            'group_title': group_title,
-            'available_members': available,
-            'can_add_members': available > 0,
-            'server_name': SERVER_ADMIN_NAME,
-            'target_group': target_group
-        })
+        return jsonify(run_async(test()))
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 
 @app.route('/api/join-group', methods=['POST'])
 def join_group():
-    """Manually trigger join for target group"""
     try:
-        data = request.json
-        account_id = data.get('accountId')
-        group = data.get('group', TARGET_GROUP)
+        aid = request.json.get('accountId')
+        grp = request.json.get('group', TARGET_GROUP)
+        acc = next((a for a in accounts if a['id'] == aid), None)
+        if not acc:
+            return jsonify({'success': False, 'error': 'Not found'})
         
-        client = store.clients.get(account_id)
-        if not client:
-            return jsonify({'success': False, 'error': 'Account not connected'})
+        async def join():
+            client = TelegramClient(StringSession(acc['session']), API_ID, API_HASH)
+            await client.connect()
+            try:
+                entity = await client.get_entity(grp)
+                await client(JoinChannelRequest(entity))
+                return {'success': True, 'message': f'Joined {grp}'}
+            except Exception as e:
+                if 'already' in str(e).lower():
+                    return {'success': True, 'message': 'Already member'}
+                return {'success': False, 'error': str(e)}
+            finally:
+                await client.disconnect()
         
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        
-        try:
-            entity = loop.run_until_complete(client.get_entity(f'@{group}'))
-            loop.run_until_complete(client(JoinChannelRequest(entity)))
-            loop.close()
-            return jsonify({'success': True, 'message': f'Joined @{group}'})
-        except Exception as e:
-            loop.close()
-            error_msg = str(e)
-            if 'already' in error_msg.lower():
-                return jsonify({'success': True, 'message': f'Already in @{group}'})
-            return jsonify({'success': False, 'error': error_msg})
+        return jsonify(run_async(join()))
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 
 @app.route('/api/send-report')
-def trigger_report():
-    success = send_daily_report()
-    return jsonify({'success': success, 'message': 'Report sent' if success else 'Failed'})
+def send_report():
+    reset_daily()
+    
+    our = {
+        'name': SERVER_NAME, 'number': SERVER_NUMBER,
+        'today': stats.get('today_added', 0), 'total': stats.get('total_added', 0),
+        'active_accounts': len(accounts)
+    }
+    
+    all_stats = [our]
+    for srv in OTHER_SERVERS:
+        try:
+            r = requests.get(f"{srv['url']}/api/public-stats", timeout=10)
+            if r.status_code == 200:
+                d = r.json()
+                if d.get('success'):
+                    all_stats.append(d['stats'])
+                    continue
+        except:
+            pass
+        all_stats.append({'name': srv['name'], 'today': 0, 'total': 0, 'error': True})
+    
+    all_stats.sort(key=lambda x: x.get('today', 0), reverse=True)
+    total_today = sum(s.get('today', 0) for s in all_stats)
+    total_all = sum(s.get('total', 0) for s in all_stats)
+    active_count = len([s for s in all_stats if not s.get('error')])
+    
+    report = f"""
+📊 <b>DAILY AUTO-ADD REPORT</b>
+📅 <b>{datetime.now().strftime('%Y-%m-%d %H:%M UTC')}</b>
+━━━━━━━━━━━━━━━━━━━━━━
+🏆 <b>SERVER RANKINGS</b>
+━━━━━━━━━━━━━━━━━━━━━━
+"""
+    
+    for i, s in enumerate(all_stats, 1):
+        pct = (s['today'] / total_today * 100) if total_today > 0 else 0
+        medal = '🥇' if i == 1 else ('🥈' if i == 2 else ('🥉' if i == 3 else f'{i}️⃣'))
+        status = '⚠️ OFFLINE' if s.get('error') else '✅ ONLINE'
+        bar_len = max(1, int(pct / 33 * 20))
+        bar = '█' * bar_len + '░' * (20 - bar_len)
+        report += f"""
+{medal} <b>{s['name']}</b> [{status}]
+   {bar} <b>{s['today']:,}</b> ({pct:.1f}%)
+   📅 Today: {s['today']:,} | 📊 Total: {s['total']:,}
+"""
+    
+    report += f"""
+━━━━━━━━━━━━━━━━━━━━━━
+📈 <b>SUMMARY</b>
+━━━━━━━━━━━━━━━━━━━━━━
+• 🌐 Active: <b>{active_count}/{len(all_stats)}</b>
+• 📥 Today Total: <b>{total_today:,}</b>
+• 📊 All-Time: <b>{total_all:,}</b>
+• 👑 Top: <b>{all_stats[0]['name']}</b> ({all_stats[0]['today']:,})
+• 📈 Avg/Server: <b>{total_today // max(active_count, 1):,}</b>
+━━━━━━━━━━━━━━━━━━━━━━
+🤖 <i>Generated by {SERVER_NAME}</i>
+"""
+    
+    send_telegram(report)
+    return jsonify({'success': True, 'message': 'Report sent'})
 
 # ============================================
-# KEEP-ALIVE & SCHEDULERS
+# KEEP ALIVE & SCHEDULERS
 # ============================================
-
-def keep_alive_ping():
-    """Ping itself to prevent Render sleeping"""
+def keep_alive():
     while True:
-        time.sleep(600)
+        time.sleep(240)
         try:
             requests.get(f"{SERVER_URL}/ping", timeout=10)
         except:
             pass
 
 def daily_report_scheduler():
-    """Send daily report at midnight UTC"""
-    last_date = None
+    last = None
     while True:
         now = datetime.now()
         today = now.strftime('%Y-%m-%d')
-        
-        if (now.hour == 0 or now.hour == 1) and last_date != today:
-            wait = random.randint(0, 1800)
-            time.sleep(wait)
-            store.reset_daily_if_needed()
-            send_daily_report()
-            last_date = today
-        
+        if now.hour in [0, 1] and last != today:
+            time.sleep(random.randint(0, 1800))
+            reset_daily()
+            try:
+                requests.get(f"{SERVER_URL}/api/send-report", timeout=30)
+            except:
+                pass
+            last = today
         time.sleep(300)
 
-def restore_sessions():
-    """Restore saved sessions on startup"""
-    restored = 0
-    for account in store.accounts:
-        if account.get('session_string'):
-            try:
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                
-                client = TelegramClient(
-                    StringSession(account['session_string']),
-                    API_ID, API_HASH
-                )
-                client.loop = loop
-                loop.run_until_complete(client.connect())
-                
-                if loop.run_until_complete(client.is_user_authorized()):
-                    account_id = account['id']
-                    store.clients[account_id] = client
-                    account['active'] = True
-                    restored += 1
-                    
-                    settings = store.settings.get(str(account_id), {})
-                    if settings.get('enabled'):
-                        auto_add_engine.start_for_account(account_id)
-                else:
-                    account['active'] = False
-                    loop.close()
-            except Exception as e:
-                logger.error(f"Error restoring {account.get('name')}: {e}")
-                account['active'] = False
-    
-    store.save_all()
-    logger.info(f"[{SERVER_ADMIN_NAME}] Restored {restored} sessions")
-    return restored
+def restore_and_start():
+    """Restore sessions and start auto-add"""
+    time.sleep(5)
+    for acc in accounts:
+        if acc.get('session') and auto_add_settings.get(str(acc['id']), {}).get('enabled', True):
+            start_auto_add(acc)
+            time.sleep(2)
+    logger.info(f"🚀 All accounts started for auto-add")
 
 # ============================================
 # MAIN
 # ============================================
-
 if __name__ == '__main__':
     print(f"""
-╔══════════════════════════════════════╗
-║  TELEGRAM AUTO-ADD SERVER           ║
-╠══════════════════════════════════════╣
-║  Server #{SERVER_NUMBER}: {SERVER_ADMIN_NAME}              ║
-║  Storage: GitHub Gist (FREE)        ║
-║  Target: @{TARGET_GROUP}           ║
-║  Auto-Join: ENABLED                 ║
-║  Port: {PORT}                        ║
-╚══════════════════════════════════════╝
+╔══════════════════════════════════╗
+║  AUTO-ADD SERVER #{SERVER_NUMBER}              ║
+║  Name: {SERVER_NAME}                       ║
+║  Target: @{TARGET_GROUP}          ║
+║  Mode: AGGRESSIVE                 ║
+║  Port: {PORT}                       ║
+║  URL: {SERVER_URL} ║
+╚══════════════════════════════════╝
     """)
     
-    restore_sessions()
-    
-    threading.Thread(target=keep_alive_ping, daemon=True).start()
+    threading.Thread(target=keep_alive, daemon=True).start()
     threading.Thread(target=daily_report_scheduler, daemon=True).start()
+    threading.Thread(target=restore_and_start, daemon=True).start()
     
-    send_telegram_message(f"""
-🟢 <b>{SERVER_ADMIN_NAME} Online!</b>
-🕐 {datetime.now().strftime('%Y-%m-%d %H:%M UTC')}
-📋 Server #{SERVER_NUMBER}
-🎯 Target: @{TARGET_GROUP}
-👤 Accounts: {len(store.accounts)}
-🔗 Auto-Join: ENABLED
-💾 Storage: GitHub Gist
-📊 Reports: AUTO (midnight UTC)
-""")
+    send_telegram(f"🟢 <b>{SERVER_NAME}</b> Online!\n📋 Server #{SERVER_NUMBER}\n🎯 @{TARGET_GROUP}\n⚡ AGGRESSIVE MODE")
     
     app.run(host='0.0.0.0', port=PORT, debug=False)
