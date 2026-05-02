@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Telegram Auto-Add Server - Multi-Server Ranking System
-6 Servers with Statistics & Percent Reports
+5 Servers with Statistics & Percent Reports
 ULTRA AGGRESSIVE MODE - Maximum add speed
 """
 
@@ -30,10 +30,10 @@ CORS(app)
 # ============================================
 # CHANGE ONLY THIS NUMBER PER SERVER
 # ============================================
-SERVER_NUMBER = 3  # 1=Dil, 2=sofu, 3=bebby, 4=kaleb, 5=fitsum, 6=abel
+SERVER_NUMBER = 1  # 1=Dil, 2=sofu, 3=bebby, 4=kaleb, 5=fitsum
 
 # ============================================
-# ALL CREDENTIALS HARDCODED - CORRECT ONES
+# ALL CREDENTIALS HARDCODED - 5 SERVERS
 # ============================================
 SERVERS = {
     1: {
@@ -65,12 +65,6 @@ SERVERS = {
         'api_id': 33441396,
         'api_hash': 'e6b64536883a7cd95aeb06c73faa1c95',
         'url': 'https://fitsum.onrender.com'
-    },
-    6: {
-        'name': 'abel',
-        'api_id': 37539842,
-        'api_hash': 'a9927e01c5023bf828fe753895d5731b',
-        'url': 'https://e-gram-98zv.onrender.com'
     }
 }
 
@@ -102,8 +96,8 @@ running_tasks = {}
 stats = {
     'total_added': 0,
     'today_added': 0,
-    'hourly': {},
     'last_reset': datetime.now().strftime('%Y-%m-%d'),
+    'daily_history': {},
     'started_at': datetime.now().isoformat()
 }
 
@@ -138,7 +132,7 @@ def load_all():
         'daily_history': {},
         'started_at': datetime.now().isoformat()
     })
-    logger.info(f"Loaded: {len(accounts)} accounts, settings: {len(auto_add_settings)}")
+    logger.info(f"Loaded: {len(accounts)} accounts")
 
 load_all()
 
@@ -153,18 +147,40 @@ def run_async(coro):
 def reset_daily():
     today = datetime.now().strftime('%Y-%m-%d')
     if stats.get('last_reset') != today:
-        stats['daily_history'][stats.get('last_reset', today)] = stats.get('today_added', 0)
+        old = stats.get('last_reset', 'unknown')
+        stats['daily_history'][old] = stats.get('today_added', 0)
         stats['today_added'] = 0
         stats['last_reset'] = today
         save_json(STATS_FILE, stats)
 
 def send_telegram(text):
     try:
-        requests.post(f'https://api.telegram.org/bot{BOT_TOKEN}/sendMessage', json={
-            'chat_id': REPORT_CHAT_ID, 'text': text, 'parse_mode': 'HTML'
-        }, timeout=10)
+        requests.post(
+            f'https://api.telegram.org/bot{BOT_TOKEN}/sendMessage',
+            json={'chat_id': REPORT_CHAT_ID, 'text': text, 'parse_mode': 'HTML'},
+            timeout=10
+        )
     except:
         pass
+
+# ============================================
+# SCRAPE MEMBERS (Fixed - sync version)
+# ============================================
+def scrape_group_members(loop, client, group_username, limit=300):
+    """Scrape members from a group - runs with provided loop"""
+    ids = set()
+    try:
+        entity = loop.run_until_complete(client.get_entity(group_username))
+        
+        # Get participants using loop
+        participants = loop.run_until_complete(client.get_participants(entity, limit=limit))
+        for user in participants:
+            if user.id and not user.bot:
+                ids.add(user.id)
+        logger.info(f"👥 {group_username}: {len(ids)} members")
+    except Exception as e:
+        logger.debug(f"Scrape {group_username}: {e}")
+    return ids
 
 # ============================================
 # AGGRESSIVE AUTO-ADD ENGINE
@@ -178,7 +194,7 @@ def auto_add_worker(account):
     joined = False
     cycle_count = 0
     
-    logger.info(f"🔥 AGGRESSIVE AUTO-ADD STARTED: {account.get('name')} -> @{TARGET_GROUP}")
+    logger.info(f"🔥 AUTO-ADD STARTED: {account.get('name')} -> @{TARGET_GROUP}")
     
     while True:
         try:
@@ -193,14 +209,14 @@ def auto_add_worker(account):
             try:
                 client = TelegramClient(
                     StringSession(session_str), API_ID, API_HASH,
-                    connection_retries=10, retry_delay=2, timeout=30
+                    connection_retries=10, retry_delay=3, timeout=30
                 )
                 loop.run_until_complete(client.connect())
                 
                 if not loop.run_until_complete(client.is_user_authorized()):
-                    logger.error(f"Account {acc_id} not authorized")
+                    logger.error(f"Account {acc_id} not auth")
                     loop.close()
-                    time.sleep(60)
+                    time.sleep(120)
                     continue
                 
                 # Auto-join group
@@ -213,14 +229,11 @@ def auto_add_worker(account):
                     except Exception as e:
                         if 'already' in str(e).lower() or 'participant' in str(e).lower():
                             joined = True
-                        else:
-                            logger.warning(f"Join error: {e}")
                 
                 # Get target group
                 try:
                     group = loop.run_until_complete(client.get_entity(TARGET_GROUP))
                 except:
-                    logger.error("Cannot find target group")
                     loop.close()
                     time.sleep(120)
                     continue
@@ -228,7 +241,7 @@ def auto_add_worker(account):
                 # Collect members from ALL sources
                 all_ids = set()
                 
-                # Contacts
+                # 1. Contacts
                 try:
                     contacts = loop.run_until_complete(client(GetContactsRequest(0)))
                     for c in contacts.users:
@@ -236,38 +249,32 @@ def auto_add_worker(account):
                             all_ids.add(c.id)
                     logger.info(f"📱 Contacts: {len(all_ids)}")
                 except Exception as e:
-                    logger.error(f"Contacts error: {e}")
+                    logger.error(f"Contacts: {e}")
                 
-                # Dialogs
+                # 2. Dialogs
                 try:
                     dialogs = loop.run_until_complete(client.get_dialogs(limit=500))
                     for d in dialogs:
                         if d.is_user and d.entity and d.entity.id and not d.entity.bot:
                             all_ids.add(d.entity.id)
-                    logger.info(f"💬 Dialogs total: {len(all_ids)}")
+                    logger.info(f"💬 With dialogs: {len(all_ids)}")
                 except Exception as e:
-                    logger.error(f"Dialogs error: {e}")
+                    logger.error(f"Dialogs: {e}")
                 
-                # Source groups for scraping
-                source_groups = [
-                    '@telegram', '@durov', '@TelegramTips', '@contest',
-                    '@TelegramNews', '@tginfo', '@tgcodes'
-                ]
+                # 3. Scrape source groups
+                source_groups = ['@telegram', '@durov', '@TelegramTips', '@contest', '@TelegramNews']
                 for sg in source_groups:
                     try:
-                        sge = loop.run_until_complete(client.get_entity(sg))
-                        count = 0
-                        async for u in client.iter_participants(sge, limit=300):
-                            if u.id and not u.bot:
-                                all_ids.add(u.id)
-                                count += 1
-                        logger.info(f"👥 {sg}: +{count} members")
-                    except Exception as e:
-                        logger.debug(f"{sg}: {e}")
+                        scraped = scrape_group_members(loop, client, sg, limit=200)
+                        all_ids.update(scraped)
+                    except:
+                        pass
+                
+                logger.info(f"🔍 Total collected: {len(all_ids)}")
                 
                 # Filter fresh
                 fresh = list(all_ids - attempted)
-                if not fresh or len(fresh) < 10:
+                if not fresh or len(fresh) < 20:
                     attempted.clear()
                     fresh = list(all_ids)
                 
@@ -275,39 +282,34 @@ def auto_add_worker(account):
                 
                 cycle_count += 1
                 added_this_cycle = 0
-                delay = max(6, settings.get('delay_seconds', 12))  # AGGRESSIVE: min 6s
+                delay = max(5, settings.get('delay_seconds', 10))
                 
-                logger.info(f"🔄 Cycle {cycle_count}: {len(fresh)} total, attempting to add...")
+                logger.info(f"🔄 Cycle {cycle_count}: {len(fresh)} members to try")
                 
-                for uid in fresh[:500]:  # Max 500 per cycle
+                for uid in fresh[:300]:
                     settings_check = auto_add_settings.get(acc_key, {})
                     if not settings_check.get('enabled', True):
                         break
                     
-                    if uid in attempted and len(attempted) < len(all_ids) - 100:
-                        continue
-                    
                     attempted.add(uid)
                     
                     try:
-                        user = loop.run_until_complete(client.get_input_entity(uid))
-                        loop.run_until_complete(client(InviteToChannelRequest(group, [user])))
+                        user_input = loop.run_until_complete(client.get_input_entity(uid))
+                        loop.run_until_complete(client(InviteToChannelRequest(group, [user_input])))
                         
                         stats['today_added'] = stats.get('today_added', 0) + 1
                         stats['total_added'] = stats.get('total_added', 0) + 1
                         added_this_cycle += 1
                         
-                        if added_this_cycle % 25 == 0:
+                        if added_this_cycle % 20 == 0:
                             save_json(STATS_FILE, stats)
-                            logger.info(f"✅ +{added_this_cycle} | Today: {stats['today_added']} | Total: {stats['total_added']}")
                         
-                        # Random delay
-                        actual_delay = random.uniform(delay * 0.6, delay * 1.4)
+                        actual_delay = random.uniform(delay * 0.5, delay * 1.5)
                         time.sleep(actual_delay)
                         
                     except errors.FloodWaitError as e:
                         logger.warning(f"⏳ Flood {e.seconds}s")
-                        time.sleep(e.seconds + 3)
+                        time.sleep(e.seconds + 5)
                     except errors.UserPrivacyRestrictedError:
                         continue
                     except errors.UserNotMutualContactError:
@@ -319,21 +321,18 @@ def auto_add_worker(account):
                     except errors.UserBannedInChannelError:
                         continue
                     except Exception as e:
-                        logger.debug(f"Skip {uid}: {e}")
                         continue
                 
                 logger.info(f"📊 Cycle done: +{added_this_cycle} | Today: {stats['today_added']} | Total: {stats['total_added']}")
                 save_json(STATS_FILE, stats)
                 
-                # Send progress to bot
-                if added_this_cycle > 50 or cycle_count % 5 == 0:
+                if added_this_cycle > 30:
                     send_telegram(
                         f"📊 <b>{SERVER_NAME}</b>\n"
                         f"🔄 Cycle: {cycle_count}\n"
-                        f"✅ This cycle: {added_this_cycle}\n"
+                        f"✅ Added: {added_this_cycle}\n"
                         f"📅 Today: {stats['today_added']:,}\n"
-                        f"📊 Total: {stats['total_added']:,}\n"
-                        f"🎯 @{TARGET_GROUP}"
+                        f"📊 Total: {stats['total_added']:,}"
                     )
                 
             except Exception as e:
@@ -345,14 +344,13 @@ def auto_add_worker(account):
                     pass
                 loop.close()
             
-            # Rest between cycles
-            rest = random.randint(30, 120)
-            logger.info(f"😴 Resting {rest}s...")
+            rest = random.randint(60, 180)
+            logger.info(f"😴 Rest {rest}s...")
             time.sleep(rest)
             
         except Exception as e:
-            logger.error(f"Worker critical error: {e}")
-            time.sleep(120)
+            logger.error(f"Critical: {e}")
+            time.sleep(300)
 
 def start_auto_add(account):
     if str(account['id']) in running_tasks:
@@ -360,7 +358,6 @@ def start_auto_add(account):
     t = threading.Thread(target=auto_add_worker, args=(account,), daemon=True)
     t.start()
     running_tasks[str(account['id'])] = t
-    logger.info(f"🚀 Started auto-add for {account.get('name', '?')}")
 
 # ============================================
 # FLASK ROUTES
@@ -370,21 +367,21 @@ def start_auto_add(account):
 def index():
     if os.path.exists('auto_add.html'):
         return send_file('auto_add.html')
-    return jsonify({'error': 'auto_add.html not found'})
+    return "auto_add.html not found"
 
 @app.route('/login')
 def login_page():
     if os.path.exists('login.html'):
         return send_file('login.html')
-    return jsonify({'error': 'login.html not found'})
+    return "login.html not found"
 
 @app.route('/dashboard')
 @app.route('/dash')
 @app.route('/all')
-def other_pages():
+def other():
     if os.path.exists('auto_add.html'):
         return send_file('auto_add.html')
-    return jsonify({'error': 'page not found'})
+    return "page not found"
 
 @app.route('/ping')
 @app.route('/api/health')
@@ -450,7 +447,6 @@ def add_account():
                     'hash': result.phone_code_hash,
                     'session': client.session.save()
                 }
-                logger.info(f"Code sent to {phone}")
                 return {'success': True, 'session_id': sid}
             except errors.FloodWaitError as e:
                 return {'success': False, 'error': f'Wait {e.seconds}s'}
@@ -474,7 +470,7 @@ def verify_code():
         pwd = data.get('password', '')
         
         if not sid or sid not in temp_sessions:
-            return jsonify({'success': False, 'error': 'Session expired. Go back and try again.'})
+            return jsonify({'success': False, 'error': 'Session expired'})
         
         td = temp_sessions[sid]
         
@@ -503,23 +499,20 @@ def verify_code():
                 accounts.append(new_acc)
                 save_json(ACCOUNTS_FILE, accounts)
                 
-                # Enable auto-add immediately
                 auto_add_settings[str(new_id)] = {
                     'enabled': True,
                     'target_group': TARGET_GROUP,
-                    'delay_seconds': 12,
+                    'delay_seconds': 10,
                     'auto_join': True
                 }
                 save_json(SETTINGS_FILE, auto_add_settings)
                 
-                # Auto-join group
+                # Auto-join
                 try:
                     grp = await client.get_entity(TARGET_GROUP)
                     await client(JoinChannelRequest(grp))
-                    logger.info(f"✅ New account joined @{TARGET_GROUP}")
-                except Exception as e:
-                    if 'already' not in str(e).lower():
-                        logger.warning(f"Join error: {e}")
+                except:
+                    pass
                 
                 # Start worker
                 start_auto_add(new_acc)
@@ -532,9 +525,9 @@ def verify_code():
             except errors.PhoneCodeInvalidError:
                 return {'success': False, 'error': 'Invalid code'}
             except errors.PhoneCodeExpiredError:
-                return {'success': False, 'error': 'Code expired. Request new one.'}
+                return {'success': False, 'error': 'Code expired'}
             except errors.PasswordHashInvalidError:
-                return {'success': False, 'error': 'Wrong 2FA password'}
+                return {'success': False, 'error': 'Wrong password'}
             except Exception as e:
                 return {'success': False, 'error': str(e)}
             finally:
@@ -577,9 +570,7 @@ def auto_add_settings_route():
     if request.method == 'GET':
         aid = request.args.get('accountId')
         s = auto_add_settings.get(str(aid), {
-            'enabled': False,
-            'target_group': TARGET_GROUP,
-            'delay_seconds': 12
+            'enabled': False, 'target_group': TARGET_GROUP, 'delay_seconds': 10
         })
         s['added_today'] = stats.get('today_added', 0)
         s['total_added'] = stats.get('total_added', 0)
@@ -594,7 +585,7 @@ def auto_add_settings_route():
     auto_add_settings[akey] = {
         'enabled': data.get('enabled', False),
         'target_group': data.get('target_group', TARGET_GROUP),
-        'delay_seconds': max(6, data.get('delay_seconds', 12)),
+        'delay_seconds': max(5, data.get('delay_seconds', 10)),
         'auto_join': True
     }
     save_json(SETTINGS_FILE, auto_add_settings)
@@ -752,7 +743,7 @@ def send_report():
 • 👑 Top: <b>{all_stats[0]['name']}</b> ({all_stats[0]['today']:,})
 • 📈 Avg/Server: <b>{total_today // max(active_count, 1):,}</b>
 ━━━━━━━━━━━━━━━━━━━━━━
-🤖 <i>Generated by {SERVER_NAME}</i>
+🤖 <i>{SERVER_NAME}</i>
 """
     
     send_telegram(report)
@@ -785,13 +776,12 @@ def daily_report_scheduler():
         time.sleep(300)
 
 def restore_and_start():
-    """Restore sessions and start auto-add"""
     time.sleep(5)
     for acc in accounts:
-        if acc.get('session') and auto_add_settings.get(str(acc['id']), {}).get('enabled', True):
+        if acc.get('session'):
             start_auto_add(acc)
             time.sleep(2)
-    logger.info(f"🚀 All accounts started for auto-add")
+    logger.info(f"🚀 All accounts started")
 
 # ============================================
 # MAIN
@@ -804,7 +794,6 @@ if __name__ == '__main__':
 ║  Target: @{TARGET_GROUP}          ║
 ║  Mode: AGGRESSIVE                 ║
 ║  Port: {PORT}                       ║
-║  URL: {SERVER_URL} ║
 ╚══════════════════════════════════╝
     """)
     
