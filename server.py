@@ -859,52 +859,67 @@ def remove_account():
     return jsonify({'success': True, 'message': f'Removed: {name}'})
 
 # ============================================
-# FIXED: GET MESSAGES / CHATS
+# FIXED: GET MESSAGES / CHATS - COMPLETELY REWRITTEN
 # ============================================
 @app.route('/api/get-messages', methods=['POST'])
 def get_messages():
-    """Get chats (dialogs) and messages for dashboard - FIXED"""
+    """Get chats (dialogs) and messages for dashboard - FULLY FIXED"""
     try:
         data = request.json
+        if not data:
+            return jsonify({'success': False, 'error': 'No data provided'})
+            
         aid = data.get('accountId')
+        if not aid:
+            return jsonify({'success': False, 'error': 'Account ID is required'})
+            
         acc = next((a for a in accounts if a['id'] == aid), None)
         if not acc:
-            return jsonify({'success': False, 'error': 'Account not found'})
+            return jsonify({'success': False, 'error': 'Account not found in storage'})
+        
+        logger.info(f"📱 Fetching chats for account: {acc.get('name', 'Unknown')} (ID: {aid})")
         
         async def fetch():
             client = get_client(acc)
-            await client.connect()
             try:
-                # Check authorization first
+                await client.connect()
+                
+                # Check authorization
                 try:
                     is_auth = await client.is_user_authorized()
                 except errors.rpcerrorlist.AuthKeyUnregisteredError:
                     await client.disconnect()
                     remove_dead_account(aid, "Auth key unregistered")
-                    return {'success': False, 'error': 'auth_key_unregistered'}
+                    return {'success': False, 'error': 'auth_key_unregistered', 'message': 'Session expired. Please remove and re-add this account.'}
                 except Exception as e:
                     await client.disconnect()
-                    remove_dead_account(aid, f"Auth check failed: {str(e)[:50]}")
-                    return {'success': False, 'error': 'auth_key_unregistered'}
+                    logger.error(f"Auth check error: {e}")
+                    return {'success': False, 'error': 'connection_error', 'message': f'Connection error: {str(e)[:100]}'}
                 
                 if not is_auth:
                     await client.disconnect()
                     remove_dead_account(aid, "Session unauthorized")
-                    return {'success': False, 'error': 'auth_key_unregistered'}
+                    return {'success': False, 'error': 'auth_key_unregistered', 'message': 'Account not authorized. Please re-add this account.'}
                 
                 # Fetch dialogs
+                logger.info(f"Fetching dialogs for {acc.get('name')}...")
                 try:
                     dialogs = await client.get_dialogs(limit=100)
+                    logger.info(f"Got {len(dialogs)} dialogs")
                 except Exception as e:
                     logger.error(f"Get dialogs error: {e}")
-                    return {'success': False, 'error': f'Failed to load dialogs: {str(e)[:100]}'}
+                    await client.disconnect()
+                    return {'success': False, 'error': 'dialogs_error', 'message': f'Failed to load dialogs: {str(e)[:100]}'}
                 
                 chats_list = []
                 all_messages = []
                 
                 for dialog in dialogs:
                     try:
+                        # Get chat ID as string
                         chat_id = str(dialog.id)
+                        
+                        # Determine chat type
                         chat_type = 'user'
                         title = dialog.name or 'Unknown'
                         
@@ -913,10 +928,12 @@ def get_messages():
                         elif dialog.is_channel:
                             chat_type = 'channel'
                         
+                        # Check if bot
                         entity = dialog.entity
                         if hasattr(entity, 'bot') and entity.bot:
                             chat_type = 'bot'
                         
+                        # Get last message info
                         last_msg_text = ''
                         last_msg_date = 0
                         last_msg_media = None
@@ -943,7 +960,7 @@ def get_messages():
                             'lastMessageMedia': last_msg_media
                         })
                         
-                        # Fetch recent messages (limit to prevent timeouts)
+                        # Fetch recent messages (limit to 15 per chat to prevent timeouts)
                         try:
                             messages = await client.get_messages(entity, limit=15)
                             for msg in messages:
@@ -975,29 +992,39 @@ def get_messages():
                                 })
                         except Exception as e:
                             logger.debug(f"Messages fetch error for {title}: {e}")
+                            # Don't fail the whole request if one chat fails
                             pass
                         
                     except Exception as e:
                         logger.debug(f"Dialog processing error: {e}")
                         continue
                 
-                logger.info(f"📱 Loaded {len(chats_list)} chats, {len(all_messages)} messages for {acc.get('name')}")
+                logger.info(f"📱 Successfully loaded {len(chats_list)} chats and {len(all_messages)} messages for {acc.get('name')}")
                 
                 return {
                     'success': True,
                     'chats': chats_list,
-                    'messages': all_messages
+                    'messages': all_messages,
+                    'account_name': acc.get('name', 'Unknown'),
+                    'chat_count': len(chats_list),
+                    'message_count': len(all_messages)
                 }
+                
             except Exception as e:
                 logger.error(f"Get messages outer error: {e}")
-                return {'success': False, 'error': f'Error: {str(e)[:100]}'}
+                return {'success': False, 'error': 'server_error', 'message': f'Error: {str(e)[:100]}'}
             finally:
-                await client.disconnect()
+                try:
+                    await client.disconnect()
+                except:
+                    pass
         
-        return jsonify(run_async(fetch()))
+        result = run_async(fetch())
+        return jsonify(result)
+        
     except Exception as e:
         logger.error(f"API get-messages error: {e}")
-        return jsonify({'success': False, 'error': str(e)[:100]})
+        return jsonify({'success': False, 'error': 'api_error', 'message': str(e)[:100]})
 
 @app.route('/api/send-message', methods=['POST'])
 def send_message():
@@ -1019,17 +1046,19 @@ def send_message():
             client = get_client(acc)
             await client.connect()
             try:
-                # Parse chat_id
+                # Parse chat_id - try different peer types
                 try:
                     chat_id_int = int(chat_id)
-                    # Try peer types
-                    try:
-                        entity = await client.get_entity(PeerUser(chat_id_int))
-                    except:
+                    # Try peer types sequentially
+                    entity = None
+                    for PeerClass in [PeerUser, PeerChat, PeerChannel]:
                         try:
-                            entity = await client.get_entity(PeerChat(chat_id_int))
+                            entity = await client.get_entity(PeerClass(chat_id_int))
+                            break
                         except:
-                            entity = await client.get_entity(PeerChannel(chat_id_int))
+                            continue
+                    if not entity:
+                        entity = await client.get_entity(chat_id)
                 except:
                     entity = await client.get_entity(chat_id)
                 
