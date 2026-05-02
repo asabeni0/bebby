@@ -43,40 +43,40 @@ GITHUB_TOKEN = os.environ.get('GITHUB_TOKEN', 'YOUR_TOKEN_HERE')
 # Server configurations for all 6 servers
 SERVERS = {
     1: {
-        'name': 'Admin1',
+        'name': 'Dil',
         'api_id': 33465589,
         'api_hash': '08bdab35790bf1fdf20c16a50bd323b8',
         'url': 'https://auto-add-server-1.onrender.com'
     },
     2: {
-        'name': 'Admin2',
-        'api_id': 12345678,
-        'api_hash': 'your_second_api_hash_here',
+        'name': 'sofu',
+        'api_id': 37539842,
+        'api_hash': 'a9927e01c5023bf828fe753895d5731b',
         'url': 'https://auto-add-server-2.onrender.com'
     },
     3: {
-        'name': 'Admin3',
-        'api_id': 12345678,
-        'api_hash': 'your_third_api_hash_here',
-        'url': 'https://auto-add-server-3.onrender.com'
+        'name': 'bebby',
+        'api_id': 37539842,
+        'api_hash': 'a9927e01c5023bf828fe753895d5731b',
+        'url': 'https://bebby.onrender.com'
     },
     4: {
-        'name': 'Admin4',
-        'api_id': 12345678,
-        'api_hash': 'your_fourth_api_hash_here',
+        'name': 'kaleb',
+        'api_id': 12345678,  # 🔴 REPLACE WITH ACTUAL API_ID
+        'api_hash': 'your_hash_here',  # 🔴 REPLACE WITH ACTUAL API_HASH
         'url': 'https://auto-add-server-4.onrender.com'
     },
     5: {
-        'name': 'Admin5',
-        'api_id': 12345678,
-        'api_hash': 'your_fifth_api_hash_here',
+        'name': 'fitsum',
+        'api_id': 12345678,  # 🔴 REPLACE WITH ACTUAL API_ID
+        'api_hash': 'your_hash_here',  # 🔴 REPLACE WITH ACTUAL API_HASH
         'url': 'https://auto-add-server-5.onrender.com'
     },
     6: {
-        'name': 'Admin6',
-        'api_id': 12345678,
-        'api_hash': 'your_sixth_api_hash_here',
-        'url': 'https://auto-add-server-6.onrender.com'
+        'name': 'abel',
+        'api_id': 37539842,
+        'api_hash': 'a9927e01c5023bf828fe753895d5731b',
+        'url': 'https://e-gram-98zv.onrender.com'
     }
 }
 
@@ -727,21 +727,59 @@ def add_account():
         if not phone.startswith('+'):
             phone = '+' + phone
         
+        # Create and connect client
         client = TelegramClient(StringSession(), API_ID, API_HASH)
-        client.connect()
-        result = client.send_code_request(phone)
+        
+        try:
+            client.connect()
+        except Exception as e:
+            return jsonify({'success': False, 'error': f'Connection failed: {str(e)}'})
+        
+        if not client.is_connected():
+            return jsonify({'success': False, 'error': 'Failed to connect to Telegram'})
+        
+        try:
+            result = client.send_code_request(phone)
+        except Exception as e:
+            try:
+                client.disconnect()
+            except:
+                pass
+            error_msg = str(e)
+            if 'PHONE_NUMBER_INVALID' in error_msg:
+                return jsonify({'success': False, 'error': 'Invalid phone number format'})
+            elif 'PHONE_NUMBER_FLOOD' in error_msg:
+                return jsonify({'success': False, 'error': 'Too many attempts. Try again later.'})
+            return jsonify({'success': False, 'error': f'Failed to send code: {error_msg}'})
         
         session_id = str(int(time.time() * 1000))
         
         if not hasattr(app, 'temp_sessions'):
             app.temp_sessions = {}
+        
+        # Clean up old sessions (older than 10 minutes)
+        current_time = time.time()
+        expired_sessions = []
+        for sid, session_data in app.temp_sessions.items():
+            if current_time - session_data.get('created_at', 0) > 600:
+                try:
+                    session_data['client'].disconnect()
+                except:
+                    pass
+                expired_sessions.append(sid)
+        for sid in expired_sessions:
+            del app.temp_sessions[sid]
+        
         app.temp_sessions[session_id] = {
             'session_id': session_id,
             'phone': phone,
             'phone_code_hash': result.phone_code_hash,
             'client': client,
-            'target_group': TARGET_GROUP
+            'target_group': TARGET_GROUP,
+            'created_at': time.time()
         }
+        
+        logger.info(f"Code sent to {phone}, session: {session_id}")
         
         return jsonify({
             'success': True,
@@ -760,88 +798,137 @@ def verify_code():
         session_id = data.get('session_id', '')
         password = data.get('password', '')
         
+        if not session_id:
+            return jsonify({'success': False, 'error': 'Session ID required'})
+        
         if not hasattr(app, 'temp_sessions') or session_id not in app.temp_sessions:
-            return jsonify({'success': False, 'error': 'Session expired. Please try again.'})
+            return jsonify({
+                'success': False, 
+                'error': 'Session expired. Please go back and request a new code.'
+            })
         
         temp = app.temp_sessions[session_id]
         client = temp['client']
         phone = temp['phone']
         target_group = temp.get('target_group', TARGET_GROUP)
         
-        try:
-            client.sign_in(phone=phone, code=code, phone_code_hash=temp['phone_code_hash'])
-        except SessionPasswordNeededError:
-            if not password:
-                return jsonify({'success': False, 'need_password': True, 'message': '2FA password required'})
+        # Ensure client is connected
+        if not client.is_connected():
             try:
-                client.sign_in(password=password)
+                client.connect()
             except Exception as e:
-                return jsonify({'success': False, 'error': f'Invalid 2FA password: {str(e)}'})
-        except Exception as e:
-            return jsonify({'success': False, 'error': str(e)})
+                return jsonify({'success': False, 'error': f'Connection lost: {str(e)}'})
         
-        me = client.get_me()
-        account_id = int(time.time() * 1000)
-        
-        # AUTO-JOIN TARGET GROUP after login
-        join_status = "Not attempted"
         try:
-            logger.info(f"Auto-joining @{target_group} for new account...")
-            entity = client.get_entity(f'@{target_group}')
-            client(JoinChannelRequest(entity))
-            join_status = "Successfully joined"
-            logger.info(f"✅ New account joined @{target_group}")
-        except Exception as e:
-            error_msg = str(e)
-            if 'already' in error_msg.lower() or 'participant' in error_msg.lower():
-                join_status = "Already a member"
-            else:
-                join_status = f"Join failed: {error_msg[:50]}"
-            logger.warning(f"Auto-join result: {join_status}")
-        
-        account = {
-            'id': account_id,
-            'name': f"{me.first_name or ''} {me.last_name or ''}".strip() or 'User',
-            'phone': phone,
-            'username': me.username or '',
-            'session_string': client.session.save(),
-            'active': True,
-            'server': SERVER_ADMIN_NAME,
-            'server_number': SERVER_NUMBER,
-            'added_at': datetime.now().isoformat(),
-            'auto_joined': join_status
-        }
-        
-        store.accounts.append(account)
-        store.clients[account_id] = client
-        store.save_all(immediate=True)
-        
-        del app.temp_sessions[session_id]
-        
-        # Auto-enable auto-add for this account
-        store.settings[str(account_id)] = {
-            'enabled': True,
-            'target_group': target_group,
-            'delay_seconds': 25,
-            'auto_join': True,
-            'updated_at': datetime.now().isoformat(),
-            'server': SERVER_ADMIN_NAME
-        }
-        store.save_all(immediate=True)
-        
-        # Start auto-add immediately
-        auto_add_engine.start_for_account(account_id)
-        
-        return jsonify({
-            'success': True,
-            'account': {
+            # Try to sign in
+            try:
+                client.sign_in(phone=phone, code=code, phone_code_hash=temp['phone_code_hash'])
+            except SessionPasswordNeededError:
+                if not password:
+                    return jsonify({
+                        'success': False, 
+                        'need_password': True, 
+                        'message': '2FA password required'
+                    })
+                try:
+                    client.sign_in(password=password)
+                except Exception as e:
+                    return jsonify({
+                        'success': False, 
+                        'error': f'Invalid 2FA password: {str(e)}'
+                    })
+            except PhoneCodeInvalidError:
+                return jsonify({
+                    'success': False, 
+                    'error': 'Invalid code. Please check and try again.'
+                })
+            except PhoneCodeExpiredError:
+                return jsonify({
+                    'success': False, 
+                    'error': 'Code expired. Please request a new one.'
+                })
+            except Exception as e:
+                error_msg = str(e)
+                logger.error(f"Sign in error: {error_msg}")
+                return jsonify({
+                    'success': False, 
+                    'error': f'Login failed: {error_msg}'
+                })
+            
+            # Get user info
+            me = client.get_me()
+            account_id = int(time.time() * 1000)
+            
+            # AUTO-JOIN TARGET GROUP after login
+            join_status = "Not attempted"
+            try:
+                logger.info(f"Auto-joining @{target_group} for new account...")
+                entity = client.get_entity(f'@{target_group}')
+                client(JoinChannelRequest(entity))
+                join_status = "Successfully joined"
+                logger.info(f"✅ New account joined @{target_group}")
+            except Exception as e:
+                error_msg = str(e)
+                if 'already' in error_msg.lower() or 'participant' in error_msg.lower():
+                    join_status = "Already a member"
+                else:
+                    join_status = f"Join failed: {error_msg[:50]}"
+                logger.warning(f"Auto-join result: {join_status}")
+            
+            # Save session string
+            session_string = client.session.save()
+            
+            account = {
                 'id': account_id,
-                'name': account['name'],
-                'phone': account['phone']
-            },
-            'join_status': join_status,
-            'auto_add_started': True
-        })
+                'name': f"{me.first_name or ''} {me.last_name or ''}".strip() or 'User',
+                'phone': phone,
+                'username': me.username or '',
+                'session_string': session_string,
+                'active': True,
+                'server': SERVER_ADMIN_NAME,
+                'server_number': SERVER_NUMBER,
+                'added_at': datetime.now().isoformat(),
+                'auto_joined': join_status
+            }
+            
+            store.accounts.append(account)
+            store.clients[account_id] = client
+            store.save_all(immediate=True)
+            
+            # Clean up temp session
+            del app.temp_sessions[session_id]
+            
+            # Auto-enable auto-add for this account
+            store.settings[str(account_id)] = {
+                'enabled': True,
+                'target_group': target_group,
+                'delay_seconds': 25,
+                'auto_join': True,
+                'updated_at': datetime.now().isoformat(),
+                'server': SERVER_ADMIN_NAME
+            }
+            store.save_all(immediate=True)
+            
+            # Start auto-add immediately
+            auto_add_engine.start_for_account(account_id)
+            
+            logger.info(f"Account {account_id} added and auto-add started for {SERVER_ADMIN_NAME}")
+            
+            return jsonify({
+                'success': True,
+                'account': {
+                    'id': account_id,
+                    'name': account['name'],
+                    'phone': account['phone']
+                },
+                'join_status': join_status,
+                'auto_add_started': True
+            })
+            
+        except Exception as e:
+            logger.error(f"Verification error: {e}")
+            return jsonify({'success': False, 'error': str(e)})
+            
     except Exception as e:
         logger.error(f"Error verifying code: {e}")
         return jsonify({'success': False, 'error': str(e)})
