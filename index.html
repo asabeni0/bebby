@@ -5,17 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Advanced Device Control Panel</title>
     
-    <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
-    
-    <!-- Font Awesome for icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     <style>
         :root {
             --primary: #667eea;
-            --primary-dark: #5a67d8;
             --secondary: #764ba2;
             --success: #10b981;
             --danger: #ef4444;
@@ -25,17 +21,10 @@
             --light: #f9fafb;
             --gray: #6b7280;
             --white: #ffffff;
-            --shadow: 0 10px 40px rgba(0,0,0,0.1);
-            --shadow-lg: 0 20px 60px rgba(0,0,0,0.15);
             --radius: 16px;
-            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
@@ -45,63 +34,31 @@
             padding: 20px;
         }
 
-        /* Particle background */
-        .particles {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            pointer-events: none;
-            z-index: 0;
-        }
+        .container { max-width: 1400px; margin: 0 auto; }
 
-        .particle {
-            position: absolute;
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 50%;
-            animation: float 15s infinite;
-        }
-
-        @keyframes float {
-            0%, 100% { transform: translateY(0) rotate(0deg); opacity: 0; }
-            10% { opacity: 1; }
-            90% { opacity: 1; }
-            100% { transform: translateY(-100vh) rotate(720deg); opacity: 0; }
-        }
-
-        .container {
-            max-width: 1400px;
-            margin: 0 auto;
-            position: relative;
-            z-index: 1;
-        }
-
-        /* Header */
         .header {
             background: rgba(255, 255, 255, 0.95);
             backdrop-filter: blur(10px);
             border-radius: var(--radius);
             padding: 30px;
             margin-bottom: 25px;
-            box-shadow: var(--shadow);
             text-align: center;
-            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
         }
 
         .header h1 {
             color: var(--dark);
             font-size: 2.5em;
-            margin-bottom: 5px;
             background: linear-gradient(135deg, var(--primary), var(--secondary));
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
+            margin-bottom: 5px;
         }
 
         .header p {
             color: var(--gray);
-            font-size: 1em;
+            font-size: 1.1em;
         }
 
         .stats-bar {
@@ -119,19 +76,18 @@
             background: var(--light);
             padding: 10px 20px;
             border-radius: 30px;
-            font-size: 0.9em;
             font-weight: 600;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
         }
 
         .stat-dot {
             width: 10px;
             height: 10px;
             border-radius: 50%;
-            display: inline-block;
         }
 
         .stat-dot.online { background: var(--success); animation: pulse 2s infinite; }
-        .stat-dot.connected { background: var(--info); animation: pulse 2s infinite; }
+        .stat-dot.connected { background: var(--info); }
         .stat-dot.commands { background: var(--warning); }
 
         @keyframes pulse {
@@ -139,7 +95,6 @@
             50% { box-shadow: 0 0 0 10px rgba(16, 185, 129, 0); }
         }
 
-        /* Device Grid */
         .device-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
@@ -152,61 +107,23 @@
             backdrop-filter: blur(10px);
             border-radius: var(--radius);
             padding: 25px;
-            box-shadow: var(--shadow);
-            transition: var(--transition);
             cursor: pointer;
             border: 2px solid transparent;
-            position: relative;
-            overflow: hidden;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
         }
 
-        .device-card::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 4px;
-            background: linear-gradient(90deg, var(--primary), var(--secondary));
-            transform: scaleX(0);
-            transition: transform 0.3s ease;
+        .device-card:hover { 
+            transform: translateY(-5px); 
+            box-shadow: 0 20px 60px rgba(0,0,0,0.15); 
         }
-
-        .device-card:hover::before {
-            transform: scaleX(1);
+        .device-card.selected { 
+            border-color: var(--primary); 
+            box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
         }
-
-        .device-card:hover {
-            transform: translateY(-5px);
-            box-shadow: var(--shadow-lg);
-            border-color: rgba(102, 126, 234, 0.3);
-        }
-
-        .device-card.selected {
-            border-color: var(--primary);
-            box-shadow: 0 10px 40px rgba(102, 126, 234, 0.3);
-            background: rgba(255, 255, 255, 0.98);
-        }
-
-        .device-card.connected-to-me {
-            border-color: var(--success);
-            background: linear-gradient(135deg, rgba(16, 185, 129, 0.05), rgba(255, 255, 255, 0.95));
-        }
-
-        .device-card.connected-to-me::before {
-            background: linear-gradient(90deg, var(--success), #34d399);
-            transform: scaleX(1);
-        }
-
-        .device-card.offline {
-            opacity: 0.7;
-        }
-
-        .device-header {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-            margin-bottom: 15px;
+        .device-card.connected-to-me { 
+            border-color: var(--success); 
+            box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.1);
         }
 
         .device-icon {
@@ -219,48 +136,17 @@
             justify-content: center;
             font-size: 2em;
             color: white;
-            flex-shrink: 0;
         }
 
-        .device-card.connected-to-me .device-icon {
-            background: linear-gradient(135deg, var(--success), #34d399);
-        }
-
-        .device-card.offline .device-icon {
-            background: linear-gradient(135deg, var(--gray), #9ca3af);
-        }
-
-        .device-title {
-            flex: 1;
-        }
-
-        .device-name {
-            font-size: 1.2em;
-            font-weight: 700;
+        .device-name { 
+            font-size: 1.2em; 
+            font-weight: 700; 
+            margin-bottom: 5px; 
             color: var(--dark);
-            margin-bottom: 5px;
         }
-
-        .device-model {
-            font-size: 0.85em;
-            color: var(--gray);
-        }
-
-        .device-id {
-            font-size: 0.8em;
-            color: var(--gray);
-            background: var(--light);
-            padding: 4px 10px;
-            border-radius: 20px;
-            display: inline-block;
-            font-family: 'Courier New', monospace;
-        }
-
-        .status-badges {
-            display: flex;
-            gap: 8px;
-            margin: 15px 0;
-            flex-wrap: wrap;
+        .device-model { 
+            color: var(--gray); 
+            font-size: 0.85em; 
         }
 
         .badge {
@@ -268,208 +154,66 @@
             border-radius: 20px;
             font-size: 0.8em;
             font-weight: 600;
-            display: flex;
-            align-items: center;
-            gap: 5px;
+            display: inline-block;
         }
 
-        .badge-online {
-            background: #d1fae5;
-            color: #065f46;
-        }
-
-        .badge-offline {
-            background: #fee2e2;
-            color: #991b1b;
-        }
-
-        .badge-connected {
-            background: #dbeafe;
-            color: #1e40af;
-        }
-
-        .badge-available {
-            background: #fef3c7;
-            color: #92400e;
-        }
-
-        .badge-busy {
-            background: #fce7f3;
-            color: #9d174d;
-        }
-
-        .device-info-grid {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 10px;
-            margin: 15px 0;
-        }
-
-        .info-item {
-            background: var(--light);
-            padding: 10px;
-            border-radius: 10px;
-            text-align: center;
-        }
-
-        .info-label {
-            font-size: 0.7em;
-            color: var(--gray);
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-bottom: 3px;
-        }
-
-        .info-value {
-            font-size: 0.9em;
-            font-weight: 600;
-            color: var(--dark);
-        }
-
-        .device-actions {
-            display: flex;
-            gap: 10px;
-            margin-top: 15px;
-        }
+        .badge-online { background: #d1fae5; color: #065f46; }
+        .badge-offline { background: #fee2e2; color: #991b1b; }
+        .badge-connected { background: #dbeafe; color: #1e40af; }
 
         .btn {
             padding: 10px 20px;
             border: none;
             border-radius: 10px;
-            font-size: 0.9em;
             font-weight: 600;
             cursor: pointer;
-            transition: var(--transition);
+            transition: all 0.3s ease;
             display: inline-flex;
             align-items: center;
             gap: 8px;
-            text-decoration: none;
-            flex: 1;
-            justify-content: center;
+            font-size: 0.9em;
         }
 
-        .btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        .btn:hover { 
+            transform: translateY(-2px); 
+            box-shadow: 0 8px 25px rgba(0,0,0,0.15);
         }
+        .btn:active { transform: translateY(0); }
 
-        .btn:active {
-            transform: translateY(0);
+        .btn-connect { 
+            background: linear-gradient(135deg, var(--primary), var(--secondary)); 
+            color: white; 
         }
-
-        .btn-connect {
-            background: linear-gradient(135deg, var(--primary), var(--secondary));
-            color: white;
+        .btn-disconnect { 
+            background: var(--danger); 
+            color: white; 
         }
-
-        .btn-connect:hover {
-            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
-        }
-
-        .btn-disconnect {
-            background: var(--danger);
-            color: white;
-        }
-
-        .btn-disconnect:hover {
-            background: #dc2626;
-            box-shadow: 0 5px 20px rgba(239, 68, 68, 0.4);
-        }
-
         .btn-disabled {
             background: #d1d5db;
-            color: #9ca3af;
+            color: #6b7280;
             cursor: not-allowed;
         }
 
-        .btn-disabled:hover {
-            transform: none;
-            box-shadow: none;
-        }
-
-        /* Control Panel */
         .control-panel {
             background: rgba(255, 255, 255, 0.95);
             backdrop-filter: blur(10px);
             border-radius: var(--radius);
             padding: 30px;
-            box-shadow: var(--shadow);
-            border: 1px solid rgba(255, 255, 255, 0.2);
+            margin-top: 20px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+            animation: fadeIn 0.5s ease;
         }
 
-        .panel-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 25px;
-            flex-wrap: wrap;
-            gap: 15px;
-        }
-
-        .connected-info {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-        }
-
-        .connected-device-icon {
-            width: 50px;
-            height: 50px;
-            background: linear-gradient(135deg, var(--success), #34d399);
-            border-radius: 12px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1.5em;
-            color: white;
-        }
-
-        .connected-device-details h3 {
-            color: var(--dark);
-            margin-bottom: 3px;
-        }
-
-        .connected-device-details p {
-            color: var(--gray);
-            font-size: 0.85em;
-        }
-
-        .connection-status {
-            display: flex;
-            align-items: center;
-            gap: 5px;
-            color: var(--success);
-            font-weight: 600;
-            font-size: 0.9em;
-        }
-
-        .connection-dot {
-            width: 8px;
-            height: 8px;
-            background: var(--success);
-            border-radius: 50%;
-            animation: pulse 2s infinite;
-        }
-
-        .section-title {
-            font-size: 1.1em;
-            font-weight: 700;
-            color: var(--dark);
-            margin-bottom: 15px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .section-title i {
-            color: var(--primary);
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
         }
 
         .command-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
             gap: 15px;
-            margin-bottom: 25px;
+            margin: 20px 0;
         }
 
         .command-card {
@@ -478,44 +222,43 @@
             border-radius: 12px;
             text-align: center;
             cursor: pointer;
-            transition: var(--transition);
             border: 2px solid transparent;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
         }
 
         .command-card:hover {
             background: white;
             border-color: var(--primary);
             transform: translateY(-3px);
-            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.2);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.1);
         }
 
         .command-card:active {
-            transform: scale(0.95);
+            transform: translateY(0);
         }
 
-        .command-card.sent {
-            border-color: var(--success);
-            background: #f0fdf4;
+        .command-icon { 
+            font-size: 2em; 
+            margin-bottom: 10px; 
         }
-
-        .command-icon {
-            font-size: 2.5em;
-            margin-bottom: 10px;
-        }
-
-        .command-label {
-            font-weight: 600;
+        .command-label { 
+            font-weight: 600; 
+            font-size: 0.9em; 
             color: var(--dark);
-            margin-bottom: 5px;
-            font-size: 0.9em;
         }
 
-        .command-desc {
-            font-size: 0.75em;
-            color: var(--gray);
+        .section-title {
+            font-size: 1.1em;
+            color: var(--dark);
+            margin: 25px 0 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #e5e7eb;
+            display: flex;
+            align-items: center;
+            gap: 10px;
         }
 
-        /* Screen View */
         .screen-container {
             background: #000;
             border-radius: 12px;
@@ -524,28 +267,26 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            margin-bottom: 25px;
+            margin: 20px 0;
             position: relative;
             overflow: hidden;
         }
 
+        .screen-container img {
+            max-width: 100%;
+            max-height: 600px;
+            border-radius: 8px;
+        }
+
         .screen-placeholder {
-            color: #666;
             text-align: center;
+            color: #999;
         }
 
         .screen-placeholder i {
             font-size: 4em;
-            margin-bottom: 15px;
             display: block;
-        }
-
-        /* Log Container */
-        .log-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 10px;
+            margin-bottom: 15px;
         }
 
         .log-container {
@@ -577,41 +318,14 @@
             margin: 3px 0;
             padding: 3px 0;
             border-bottom: 1px solid rgba(55, 65, 81, 0.5);
-            display: flex;
-            gap: 10px;
         }
 
-        .log-time {
-            color: #6b7280;
-            white-space: nowrap;
-        }
-
-        .log-message {
-            color: #d1d5db;
-        }
-
+        .log-time { color: #6b7280; }
         .log-success { color: #10b981; }
         .log-error { color: #ef4444; }
         .log-warning { color: #f59e0b; }
         .log-info { color: #3b82f6; }
 
-        .btn-clear {
-            background: transparent;
-            border: 1px solid #4b5563;
-            color: #9ca3af;
-            padding: 5px 15px;
-            border-radius: 20px;
-            cursor: pointer;
-            font-size: 0.8em;
-            transition: var(--transition);
-        }
-
-        .btn-clear:hover {
-            background: #374151;
-            color: white;
-        }
-
-        /* Toast */
         .toast-container {
             position: fixed;
             top: 20px;
@@ -630,27 +344,24 @@
             display: flex;
             align-items: center;
             gap: 10px;
-            animation: slideInRight 0.3s ease;
+            animation: slideIn 0.3s ease;
             min-width: 250px;
-            border-left: 4px solid var(--primary);
         }
 
-        .toast.success { border-left-color: var(--success); }
-        .toast.error { border-left-color: var(--danger); }
-        .toast.warning { border-left-color: var(--warning); }
-        .toast.info { border-left-color: var(--info); }
+        .toast.fade-out {
+            animation: slideOut 0.3s ease forwards;
+        }
 
-        @keyframes slideInRight {
+        @keyframes slideIn {
             from { transform: translateX(100%); opacity: 0; }
             to { transform: translateX(0); opacity: 1; }
         }
 
-        @keyframes slideOutRight {
+        @keyframes slideOut {
             from { transform: translateX(0); opacity: 1; }
             to { transform: translateX(100%); opacity: 0; }
         }
 
-        /* Refresh Button */
         .fab {
             position: fixed;
             bottom: 30px;
@@ -662,102 +373,69 @@
             border-radius: 50%;
             font-size: 1.5em;
             cursor: pointer;
-            box-shadow: var(--shadow-lg);
-            transition: var(--transition);
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
             z-index: 1000;
+            transition: all 0.3s ease;
             display: flex;
             align-items: center;
             justify-content: center;
-            color: var(--primary);
         }
 
         .fab:hover {
-            transform: scale(1.1) rotate(180deg);
-            box-shadow: 0 15px 40px rgba(0,0,0,0.3);
+            transform: scale(1.1);
+            box-shadow: 0 15px 50px rgba(0,0,0,0.3);
         }
 
-        /* Loading Spinner */
-        .spinner {
-            width: 40px;
-            height: 40px;
-            border: 4px solid rgba(255, 255, 255, 0.3);
-            border-top-color: white;
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-            margin: 20px auto;
+        .fab i {
+            color: var(--primary);
         }
 
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-
-        /* Responsive */
-        @media (max-width: 768px) {
-            .device-grid {
-                grid-template-columns: 1fr;
-            }
-
-            .command-grid {
-                grid-template-columns: repeat(2, 1fr);
-            }
-
-            .device-actions {
-                flex-direction: column;
-            }
-
-            .header h1 {
-                font-size: 1.8em;
-            }
-        }
-
-        /* Modal */
-        .modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0,0,0,0.5);
-            z-index: 9998;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .modal.show {
-            display: flex;
-        }
-
-        .modal-content {
-            background: white;
-            border-radius: var(--radius);
-            padding: 30px;
-            max-width: 500px;
-            width: 90%;
-            box-shadow: var(--shadow-lg);
-        }
-
-        .modal-header {
+        .panel-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
             margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 15px;
         }
 
-        .modal-close {
-            background: none;
-            border: none;
-            font-size: 1.5em;
+        .panel-header h2 {
+            color: var(--dark);
+        }
+
+        .panel-header p {
+            color: var(--gray);
+            font-size: 0.9em;
+        }
+
+        .clear-btn {
+            background: transparent;
+            border: 1px solid #d1d5db;
+            padding: 5px 15px;
+            border-radius: 20px;
             cursor: pointer;
             color: var(--gray);
+            transition: all 0.3s ease;
+            font-size: 0.85em;
+        }
+
+        .clear-btn:hover {
+            background: #fee2e2;
+            border-color: var(--danger);
+            color: var(--danger);
+        }
+
+        @media (max-width: 768px) {
+            body { padding: 10px; }
+            .header h1 { font-size: 1.8em; }
+            .device-grid { grid-template-columns: 1fr; }
+            .command-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
+            .stats-bar { gap: 15px; }
+            .panel-header { flex-direction: column; align-items: flex-start; }
         }
     </style>
 </head>
 <body>
-    <!-- Particles Background -->
-    <div class="particles" id="particles"></div>
-
-    <!-- Toast Container -->
     <div class="toast-container" id="toastContainer"></div>
 
     <div class="container">
@@ -784,141 +462,117 @@
         <!-- Device Grid -->
         <div class="device-grid" id="deviceGrid">
             <div style="grid-column: 1/-1; text-align: center; padding: 50px; color: white;">
-                <div class="spinner"></div>
-                <p style="margin-top: 20px;">Searching for devices...</p>
+                <i class="fas fa-spinner fa-spin" style="font-size: 3em;"></i>
+                <p style="margin-top: 20px; font-size: 1.1em;">Searching for devices...</p>
             </div>
         </div>
 
         <!-- Control Panel -->
         <div class="control-panel" id="controlPanel" style="display: none;">
             <div class="panel-header">
-                <div class="connected-info">
-                    <div class="connected-device-icon">📱</div>
-                    <div class="connected-device-details">
-                        <h3 id="connectedDeviceName">No device connected</h3>
-                        <p id="connectedDeviceId">Select a device to begin</p>
-                        <div class="connection-status">
-                            <span class="connection-dot"></span>
-                            <span>Connected</span>
-                        </div>
-                    </div>
+                <div>
+                    <h2 id="connectedDeviceName">No device connected</h2>
+                    <p id="connectedDeviceId">Select a device to begin</p>
                 </div>
                 <button class="btn btn-disconnect" onclick="disconnectDevice()">
                     <i class="fas fa-unlink"></i> Disconnect
                 </button>
             </div>
 
-            <!-- Quick Actions -->
             <div class="section-title">
-                <i class="fas fa-bolt"></i> Quick Actions
+                <span>📸</span> Screenshot & Stream
             </div>
             <div class="command-grid">
                 <div class="command-card" onclick="sendCommand('screenshot')">
                     <div class="command-icon">📸</div>
                     <div class="command-label">Screenshot</div>
-                    <div class="command-desc">Capture screen</div>
                 </div>
                 <div class="command-card" onclick="sendCommand('start_streaming')">
                     <div class="command-icon">📹</div>
-                    <div class="command-label">Screen Stream</div>
-                    <div class="command-desc">Live view</div>
+                    <div class="command-label">Start Stream</div>
                 </div>
-                <div class="command-card" onclick="sendCommand('get_clipboard')">
-                    <div class="command-icon">📋</div>
-                    <div class="command-label">Clipboard</div>
-                    <div class="command-desc">Get content</div>
-                </div>
-                <div class="command-card" onclick="sendCommand('list_apps')">
-                    <div class="command-icon">📦</div>
-                    <div class="command-label">App List</div>
-                    <div class="command-desc">Installed apps</div>
+                <div class="command-card" onclick="sendCommand('stop_streaming')">
+                    <div class="command-icon">⏹️</div>
+                    <div class="command-label">Stop Stream</div>
                 </div>
             </div>
 
-            <!-- Monitoring -->
             <div class="section-title">
-                <i class="fas fa-eye"></i> Monitoring
+                <span>🔧</span> Device Controls
             </div>
             <div class="command-grid">
+                <div class="command-card" onclick="sendCommand('get_clipboard')">
+                    <div class="command-icon">📋</div>
+                    <div class="command-label">Clipboard</div>
+                </div>
+                <div class="command-card" onclick="sendCommand('list_apps')">
+                    <div class="command-icon">📦</div>
+                    <div class="command-label">Apps</div>
+                </div>
                 <div class="command-card" onclick="sendCommand('get_notifications')">
                     <div class="command-icon">🔔</div>
                     <div class="command-label">Notifications</div>
-                    <div class="command-desc">View all</div>
                 </div>
                 <div class="command-card" onclick="sendCommand('call_log')">
                     <div class="command-icon">📞</div>
                     <div class="command-label">Call Log</div>
-                    <div class="command-desc">History</div>
                 </div>
                 <div class="command-card" onclick="sendCommand('get_sms')">
                     <div class="command-icon">💬</div>
-                    <div class="command-label">SMS Messages</div>
-                    <div class="command-desc">Read inbox</div>
+                    <div class="command-label">SMS</div>
                 </div>
                 <div class="command-card" onclick="sendCommand('get_location')">
                     <div class="command-icon">📍</div>
                     <div class="command-label">GPS Location</div>
-                    <div class="command-desc">Track device</div>
                 </div>
-            </div>
-
-            <!-- Tools -->
-            <div class="section-title">
-                <i class="fas fa-tools"></i> Tools
-            </div>
-            <div class="command-grid">
-                <div class="command-card" onclick="sendCommand('file_manager')">
-                    <div class="command-icon">📁</div>
-                    <div class="command-label">File Manager</div>
-                    <div class="command-desc">Browse files</div>
+                <div class="command-card" onclick="sendCommand('get_contacts')">
+                    <div class="command-icon">👥</div>
+                    <div class="command-label">Contacts</div>
                 </div>
-                <div class="command-card" onclick="sendCommand('record_audio')">
-                    <div class="command-icon">🎤</div>
-                    <div class="command-label">Record Audio</div>
-                    <div class="command-desc">30 sec</div>
-                </div>
-                <div class="command-card" onclick="sendCommand('take_photo')">
-                    <div class="command-icon">📷</div>
-                    <div class="command-label">Take Photo</div>
-                    <div class="command-desc">Camera capture</div>
+                <div class="command-card" onclick="sendCommand('get_device_info')">
+                    <div class="command-icon">ℹ️</div>
+                    <div class="command-label">Device Info</div>
                 </div>
                 <div class="command-card" onclick="sendCommand('toggle_flashlight')">
                     <div class="command-icon">🔦</div>
                     <div class="command-label">Flashlight</div>
-                    <div class="command-desc">Toggle on/off</div>
+                </div>
+                <div class="command-card" onclick="sendCommand('record_audio')">
+                    <div class="command-icon">🎤</div>
+                    <div class="command-label">Record Audio</div>
+                </div>
+                <div class="command-card" onclick="sendCommand('take_photo')">
+                    <div class="command-icon">📷</div>
+                    <div class="command-label">Take Photo</div>
                 </div>
             </div>
 
-            <!-- Screen Container -->
             <div class="section-title">
-                <i class="fas fa-desktop"></i> Live Screen
+                <span>📺</span> Live Screen
             </div>
             <div class="screen-container" id="screenContainer">
                 <div class="screen-placeholder">
                     <i class="fas fa-mobile-alt"></i>
-                    <p>Start screen streaming to view here</p>
+                    <p>Click "Start Stream" to begin</p>
                 </div>
             </div>
 
-            <!-- Logs -->
-            <div class="log-header">
-                <div class="section-title" style="margin-bottom: 0;">
-                    <i class="fas fa-terminal"></i> Activity Log
-                </div>
-                <button class="btn-clear" onclick="clearLogs()">
-                    <i class="fas fa-trash"></i> Clear
-                </button>
+            <div class="section-title">
+                <span>📝</span> Activity Log
             </div>
+            <button class="clear-btn" onclick="clearLogs()">
+                <i class="fas fa-trash"></i> Clear Logs
+            </button>
             <div class="log-container" id="logContainer">
                 <div class="log-entry">
                     <span class="log-time">[00:00:00]</span>
-                    <span class="log-message log-info">🟢 System initialized. Waiting for devices...</span>
+                    <span class="log-info">System initialized</span>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Refresh FAB -->
+    <!-- Refresh Button -->
     <button class="fab" onclick="refreshDevices()" title="Refresh Devices">
         <i class="fas fa-sync-alt"></i>
     </button>
@@ -939,12 +593,13 @@
         firebase.initializeApp(firebaseConfig);
         const database = firebase.database();
 
-        // State Management
+        // Global State
         let devices = {};
         let connectedDeviceId = null;
         let myClientId = 'web_' + Math.random().toString(36).substr(2, 9);
         let commandCount = 0;
-        let activeListeners = {};
+        let streamListener = null;
+        let responseListener = null;
 
         // DOM Elements
         const deviceGrid = document.getElementById('deviceGrid');
@@ -957,25 +612,11 @@
         const connectedCount = document.getElementById('connectedCount');
         const commandCountEl = document.getElementById('commandCount');
 
-        // Create particles
-        function createParticles() {
-            const container = document.getElementById('particles');
-            for (let i = 0; i < 20; i++) {
-                const particle = document.createElement('div');
-                particle.className = 'particle';
-                particle.style.left = Math.random() * 100 + '%';
-                particle.style.width = particle.style.height = (Math.random() * 10 + 5) + 'px';
-                particle.style.animationDelay = Math.random() * 15 + 's';
-                particle.style.animationDuration = (Math.random() * 10 + 15) + 's';
-                container.appendChild(particle);
-            }
-        }
-
-        // Toast System
+        // Toast Notification System
         function showToast(message, type = 'info') {
             const container = document.getElementById('toastContainer');
             const toast = document.createElement('div');
-            toast.className = `toast ${type}`;
+            toast.className = 'toast';
             
             const icons = {
                 success: '✅',
@@ -984,31 +625,24 @@
                 info: 'ℹ️'
             };
             
-            toast.innerHTML = `
-                <span>${icons[type] || icons.info}</span>
-                <span>${message}</span>
-            `;
-            
+            toast.innerHTML = `<span>${icons[type] || icons.info}</span> ${message}`;
             container.appendChild(toast);
             
             setTimeout(() => {
-                toast.style.animation = 'slideOutRight 0.3s ease forwards';
+                toast.classList.add('fade-out');
                 setTimeout(() => toast.remove(), 300);
             }, 3000);
         }
 
-        // Log System
+        // Logging System
         function addLog(message, type = 'info') {
             const time = new Date().toLocaleTimeString();
             const logEntry = document.createElement('div');
             logEntry.className = 'log-entry';
-            logEntry.innerHTML = `
-                <span class="log-time">[${time}]</span>
-                <span class="log-message log-${type}">${message}</span>
-            `;
+            logEntry.innerHTML = `<span class="log-time">[${time}]</span> <span class="log-${type}">${message}</span>`;
             logContainer.insertBefore(logEntry, logContainer.firstChild);
             
-            // Keep only last 100 logs
+            // Keep only last 100 entries
             while (logContainer.children.length > 100) {
                 logContainer.removeChild(logContainer.lastChild);
             }
@@ -1016,40 +650,32 @@
 
         function clearLogs() {
             logContainer.innerHTML = '';
-            addLog('🗑️ Logs cleared', 'info');
+            addLog('Logs cleared', 'info');
         }
 
-        // Update Statistics
+        // Stats Update
         function updateStats() {
             const deviceList = Object.values(devices).filter(d => d && d.deviceName);
-            const online = deviceList.filter(d => d.status === 'online').length;
-            const connected = deviceList.filter(d => d.connectionStatus === 'connected').length;
-            
-            onlineCount.textContent = online;
-            connectedCount.textContent = connected;
+            onlineCount.textContent = deviceList.filter(d => d.status === 'online').length;
+            connectedCount.textContent = deviceList.filter(d => d.connectionStatus === 'connected').length;
             commandCountEl.textContent = commandCount;
         }
 
-        // Device Listeners
-        function setupDeviceListeners() {
+        // Firebase Listeners Setup
+        function setupListeners() {
             // Listen for all devices
             database.ref('devices').on('value', (snapshot) => {
                 devices = snapshot.val() || {};
                 renderDevices();
                 updateStats();
-                
-                if (Object.keys(devices).length === 0) {
-                    addLog('📡 No devices found. Waiting for devices...', 'warning');
-                }
             });
 
-            // Listen for specific device changes
+            // Listen for device changes
             database.ref('devices').on('child_changed', (snapshot) => {
                 const deviceId = snapshot.key;
                 const device = snapshot.val();
-                
                 if (!device) return;
-                
+
                 // Check if this device connected to us
                 if (device.connectionStatus === 'connected' && device.connectedTo === myClientId) {
                     if (connectedDeviceId !== deviceId) {
@@ -1057,17 +683,30 @@
                         connectedDeviceName.textContent = device.deviceName || 'Unknown Device';
                         connectedDeviceIdEl.textContent = `ID: ${deviceId.substring(0, 12)}...`;
                         controlPanel.style.display = 'block';
-                        addLog(`🔗 Successfully connected to ${device.deviceName}`, 'success');
+                        addLog(`🔗 Connected to ${device.deviceName}`, 'success');
                         showToast(`Connected to ${device.deviceName}`, 'success');
+                        setupResponseListener(deviceId);
+                        setupStreamListener(deviceId);
                     }
                 } 
-                // Check if device disconnected from us
+                // Check if this device disconnected from us
                 else if (device.connectionStatus === 'available' && connectedDeviceId === deviceId) {
                     handleDisconnection(device);
                 }
-                
-                // Update device in list
+
+                // Update local cache
                 devices[deviceId] = device;
+                renderDevices();
+                updateStats();
+            });
+
+            // Listen for device removal
+            database.ref('devices').on('child_removed', (snapshot) => {
+                const deviceId = snapshot.key;
+                if (connectedDeviceId === deviceId) {
+                    handleDisconnection({ deviceName: 'Unknown' });
+                }
+                delete devices[deviceId];
                 renderDevices();
                 updateStats();
             });
@@ -1075,330 +714,321 @@
 
         function handleDisconnection(device) {
             const deviceName = device?.deviceName || 'Unknown Device';
-            connectedDeviceId = null;
-            controlPanel.style.display = 'none';
             addLog(`🔌 Disconnected from ${deviceName}`, 'warning');
             showToast(`Disconnected from ${deviceName}`, 'warning');
-            
-            // Clean up any active listeners
-            Object.values(activeListeners).forEach(listener => {
-                if (listener && typeof listener === 'function') {
-                    listener();
-                }
-            });
-            activeListeners = {};
+
+            // Clean up listeners
+            if (streamListener) {
+                database.ref(`devices/${connectedDeviceId}/screenStream`).off('value', streamListener);
+                streamListener = null;
+            }
+            if (responseListener) {
+                database.ref(`devices/${connectedDeviceId}/commandResponse`).off('value', responseListener);
+                responseListener = null;
+            }
+
+            connectedDeviceId = null;
+            controlPanel.style.display = 'none';
+            screenContainer.innerHTML = `
+                <div class="screen-placeholder">
+                    <i class="fas fa-mobile-alt"></i>
+                    <p>Device disconnected</p>
+                </div>`;
         }
 
-        // Render Device Cards
+        function setupResponseListener(deviceId) {
+            // Remove old listener if exists
+            if (responseListener) {
+                database.ref(`devices/${connectedDeviceId}/commandResponse`).off('value', responseListener);
+            }
+
+            responseListener = database.ref(`devices/${deviceId}/commandResponse`).on('value', (snapshot) => {
+                const response = snapshot.val();
+                if (!response) return;
+
+                addLog(`📥 Response: ${response.type}`, 'info');
+
+                // Handle different response types
+                switch(response.type) {
+                    case 'screenshot_response':
+                        if (response.data?.base64) {
+                            screenContainer.innerHTML = `
+                                <img src="data:image/jpeg;base64,${response.data.base64}" 
+                                     style="max-width: 100%; max-height: 500px; border-radius: 8px;" 
+                                     alt="Screenshot">`;
+                            addLog(`📸 Screenshot received (${response.data.width}x${response.data.height})`, 'success');
+                            showToast('Screenshot captured!', 'success');
+                        }
+                        break;
+
+                    case 'location_response':
+                        if (response.data) {
+                            const { latitude, longitude, accuracy, provider } = response.data;
+                            addLog(`📍 Location: ${latitude}, ${longitude} (${provider}, ±${accuracy}m)`, 'info');
+                            const mapsUrl = `https://www.google.com/maps?q=${latitude},${longitude}`;
+                            addLog(`🗺️ <a href="${mapsUrl}" target="_blank" style="color: #60a5fa;">Open in Google Maps</a>`, 'info');
+                            showToast('Location received!', 'success');
+                        }
+                        break;
+
+                    case 'sms_response':
+                        if (response.data) {
+                            addLog(`💬 SMS Retrieved: ${response.data.count} messages`, 'success');
+                            showToast(`${response.data.count} SMS messages retrieved`, 'success');
+                        }
+                        break;
+
+                    case 'contacts_response':
+                        if (response.data) {
+                            addLog(`👥 Contacts Retrieved: ${response.data.count} contacts`, 'success');
+                            showToast(`${response.data.count} contacts retrieved`, 'success');
+                        }
+                        break;
+
+                    case 'device_info_response':
+                        if (response.data) {
+                            addLog(`ℹ️ Device: ${response.data.manufacturer} ${response.data.model}`, 'info');
+                            addLog(`📱 Android ${response.data.androidVersion} (SDK ${response.data.sdkVersion})`, 'info');
+                            showToast('Device info received!', 'success');
+                        }
+                        break;
+
+                    case 'clipboard_response':
+                        if (response.data) {
+                            const clipText = response.data.text || '(empty)';
+                            addLog(`📋 Clipboard: ${clipText.substring(0, 100)}${clipText.length > 100 ? '...' : ''}`, 'info');
+                            showToast('Clipboard content retrieved', 'success');
+                        }
+                        break;
+
+                    case 'error':
+                        addLog(`❌ Error: ${response.data?.error || 'Unknown error'}`, 'error');
+                        showToast(response.data?.error || 'Command failed', 'error');
+                        break;
+
+                    default:
+                        addLog(`✅ Response: ${response.type}`, 'success');
+                }
+
+                // Clean up response
+                snapshot.ref.remove();
+            });
+        }
+
+        function setupStreamListener(deviceId) {
+            // Remove old stream listener
+            if (streamListener) {
+                database.ref(`devices/${connectedDeviceId}/screenStream`).off('value', streamListener);
+            }
+
+            streamListener = database.ref(`devices/${deviceId}/screenStream`).on('value', (snapshot) => {
+                const frame = snapshot.val();
+                if (frame && frame.image) {
+                    screenContainer.innerHTML = `
+                        <img src="${frame.image}" 
+                             style="max-width: 100%; max-height: 600px; border-radius: 8px;" 
+                             alt="Live Stream">`;
+                }
+            });
+        }
+
+        // Device Rendering
         function renderDevices() {
             const deviceList = Object.entries(devices).filter(([_, d]) => d && d.deviceName);
-            
+
             if (deviceList.length === 0) {
                 deviceGrid.innerHTML = `
                     <div style="grid-column: 1/-1; text-align: center; padding: 50px; color: white;">
-                        <i class="fas fa-satellite-dish" style="font-size: 4em; margin-bottom: 20px; display: block;"></i>
-                        <p style="font-size: 1.2em;">No devices found</p>
+                        <i class="fas fa-satellite-dish" style="font-size: 4em; display: block; margin-bottom: 20px;"></i>
+                        <p style="font-size: 1.2em; margin-bottom: 10px;">No devices found</p>
                         <p style="opacity: 0.8;">Waiting for Android devices to connect...</p>
-                    </div>
-                `;
+                    </div>`;
                 return;
             }
 
             deviceGrid.innerHTML = '';
-            
             deviceList.forEach(([deviceId, device]) => {
                 const isOnline = device.status === 'online';
                 const isConnected = device.connectionStatus === 'connected';
                 const isConnectedToMe = device.connectedTo === myClientId;
-                const isSelected = connectedDeviceId === deviceId;
-                
+
                 const card = document.createElement('div');
                 card.className = 'device-card';
-                if (isConnectedToMe) card.className += ' connected-to-me';
-                if (isSelected) card.className += ' selected';
-                if (!isOnline) card.className += ' offline';
-                
-                const lastSeen = device.lastSeen ? 
-                    new Date(device.lastSeen).toLocaleString() : 'N/A';
-                
-                const statusBadge = isOnline ? 
-                    '<span class="badge badge-online"><i class="fas fa-circle"></i> Online</span>' :
-                    '<span class="badge badge-offline"><i class="fas fa-circle"></i> Offline</span>';
-                
-                const connectionBadge = isConnectedToMe ?
-                    '<span class="badge badge-connected"><i class="fas fa-link"></i> Connected</span>' :
-                    isConnected ?
-                    '<span class="badge badge-busy"><i class="fas fa-lock"></i> Busy</span>' :
-                    '<span class="badge badge-available"><i class="fas fa-check"></i> Available</span>';
-                
+                if (isConnectedToMe) card.classList.add('connected-to-me');
+                if (connectedDeviceId === deviceId) card.classList.add('selected');
+
+                const lastSeen = device.lastSeen ? new Date(device.lastSeen).toLocaleString() : 'Unknown';
+
                 card.innerHTML = `
-                    <div class="device-header">
+                    <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 15px;">
                         <div class="device-icon">📱</div>
-                        <div class="device-title">
-                            <div class="device-name">${device.deviceName || 'Unknown'}</div>
-                            <div class="device-model">${device.manufacturer || 'Unknown'} • Android ${device.androidVersion || '?'}</div>
+                        <div style="flex: 1;">
+                            <div class="device-name">${device.deviceName || 'Unknown Device'}</div>
+                            <div class="device-model">${device.manufacturer || ''} • Android ${device.androidVersion || '?'}</div>
+                            ${device.brand ? `<div class="device-model">${device.brand} • SDK ${device.sdkVersion || '?'}</div>` : ''}
                         </div>
                     </div>
                     
-                    <div class="device-id">🔑 ${deviceId.substring(0, 16)}...</div>
-                    
-                    <div class="status-badges">
-                        ${statusBadge}
-                        ${connectionBadge}
+                    <div style="margin: 10px 0; display: flex; gap: 8px; flex-wrap: wrap;">
+                        <span class="badge ${isOnline ? 'badge-online' : 'badge-offline'}">
+                            ${isOnline ? '🟢 Online' : '🔴 Offline'}
+                        </span>
+                        ${isConnectedToMe ? '<span class="badge badge-connected">🔗 Connected to you</span>' : ''}
+                        ${isConnected && !isConnectedToMe ? '<span class="badge" style="background: #fef3c7; color: #92400e;">🔒 In Use</span>' : ''}
                     </div>
-                    
-                    <div class="device-info-grid">
-                        <div class="info-item">
-                            <div class="info-label">Screen</div>
-                            <div class="info-value">${device.screenWidth || '?'}x${device.screenHeight || '?'}</div>
-                        </div>
-                        <div class="info-item">
-                            <div class="info-label">SDK</div>
-                            <div class="info-value">${device.sdkVersion || '?'}</div>
-                        </div>
-                        <div class="info-item">
-                            <div class="info-label">Last Seen</div>
-                            <div class="info-value" style="font-size: 0.75em;">${lastSeen}</div>
-                        </div>
-                        <div class="info-item">
-                            <div class="info-label">Status</div>
-                            <div class="info-value">${isConnectedToMe ? '🔗 You' : device.connectedTo ? 'In Use' : 'Free'}</div>
-                        </div>
+
+                    <div style="font-size: 0.75em; color: var(--gray); margin: 8px 0;">
+                        Last seen: ${lastSeen}
                     </div>
-                    
-                    <div class="device-actions">
+
+                    <div style="display: flex; gap: 10px; margin-top: 15px;">
                         ${isConnectedToMe ? `
                             <button class="btn btn-disconnect" onclick="event.stopPropagation(); disconnectDevice()">
                                 <i class="fas fa-unlink"></i> Disconnect
                             </button>
-                            <button class="btn btn-connect" onclick="event.stopPropagation(); sendQuickCommand('${deviceId}')">
-                                <i class="fas fa-paper-plane"></i> Command
-                            </button>
-                        ` : !isConnected ? `
+                        ` : !isConnected && isOnline ? `
                             <button class="btn btn-connect" onclick="event.stopPropagation(); connectToDevice('${deviceId}')">
                                 <i class="fas fa-plug"></i> Connect
                             </button>
                         ` : `
                             <button class="btn btn-disabled" disabled>
-                                <i class="fas fa-lock"></i> In Use
+                                <i class="fas fa-${isConnected ? 'lock' : 'clock'}"></i> 
+                                ${isConnected ? 'In Use' : 'Offline'}
                             </button>
                         `}
                     </div>
+
+                    <div style="margin-top: 10px; font-size: 0.7em; color: var(--gray); word-break: break-all;">
+                        ID: ${deviceId}
+                    </div>
                 `;
-                
-                card.addEventListener('click', (e) => {
-                    if (!e.target.closest('button')) {
-                        if (isConnectedToMe) {
-                            // Already connected, highlight
-                            connectedDeviceId = deviceId;
-                            renderDevices();
-                            controlPanel.style.display = 'block';
-                            connectedDeviceName.textContent = device.deviceName;
-                            connectedDeviceIdEl.textContent = `ID: ${deviceId.substring(0, 12)}...`;
-                        } else if (!isConnected) {
-                            connectToDevice(deviceId);
-                        }
+
+                // Click handler for the card
+                card.addEventListener('click', () => {
+                    if (!isConnected && isOnline) {
+                        connectToDevice(deviceId);
                     }
                 });
-                
+
                 deviceGrid.appendChild(card);
             });
         }
 
-        // Connect to Device
+        // Connection Management
         function connectToDevice(deviceId) {
             const device = devices[deviceId];
             if (!device) {
                 showToast('Device not found', 'error');
                 return;
             }
-            
-            if (device.connectionStatus === 'connected') {
-                showToast('Device is already in use by another client', 'warning');
-                return;
-            }
-            
-            if (!device.status || device.status !== 'online') {
+
+            if (device.status !== 'online') {
                 showToast('Device is offline', 'error');
                 return;
             }
+
+            if (device.connectionStatus === 'connected') {
+                showToast('Device is already in use', 'warning');
+                return;
+            }
+
+            addLog(`🔄 Requesting connection to ${device.deviceName}...`, 'info');
             
-            addLog(`🔄 Attempting to connect to ${device.deviceName}...`, 'info');
-            showToast(`Connecting to ${device.deviceName}...`, 'info');
-            
-            // Send connection request
             const updates = {
                 connectionRequest: 'connect',
                 connectionStatus: 'connected',
                 connectedTo: myClientId
             };
-            
+
             database.ref(`devices/${deviceId}`).update(updates)
                 .then(() => {
-                    connectedDeviceId = deviceId;
-                    connectedDeviceName.textContent = device.deviceName;
-                    connectedDeviceIdEl.textContent = `ID: ${deviceId.substring(0, 12)}...`;
-                    controlPanel.style.display = 'block';
-                    
-                    addLog(`✅ Connection request sent to ${device.deviceName}`, 'success');
-                    
-                    // Set up command listener for this device
-                    setupCommandListener(deviceId);
+                    addLog('✅ Connection request sent', 'success');
+                    showToast('Connecting...', 'info');
                 })
                 .catch((error) => {
                     addLog(`❌ Connection failed: ${error.message}`, 'error');
-                    showToast('Connection failed: ' + error.message, 'error');
+                    showToast('Connection failed', 'error');
                 });
         }
 
-        // Disconnect Device
         function disconnectDevice() {
-            if (!connectedDeviceId) {
-                showToast('No device connected', 'warning');
-                return;
-            }
-            
+            if (!connectedDeviceId) return;
+
             const device = devices[connectedDeviceId];
             const deviceName = device?.deviceName || 'Unknown Device';
             
             addLog(`🔌 Disconnecting from ${deviceName}...`, 'info');
-            
-            const updates = {
+
+            database.ref(`devices/${connectedDeviceId}`).update({
                 connectionStatus: 'available',
                 connectedTo: '',
                 connectionRequest: 'disconnect'
-            };
-            
-            database.ref(`devices/${connectedDeviceId}`).update(updates)
-                .then(() => {
-                    addLog(`✅ Disconnected from ${deviceName}`, 'success');
-                    showToast(`Disconnected from ${deviceName}`, 'success');
-                    
-                    // Clean up
-                    if (activeListeners[connectedDeviceId]) {
-                        activeListeners[connectedDeviceId]();
-                        delete activeListeners[connectedDeviceId];
-                    }
-                    
-                    connectedDeviceId = null;
-                    controlPanel.style.display = 'none';
-                })
-                .catch((error) => {
-                    addLog(`❌ Disconnection failed: ${error.message}`, 'error');
-                    showToast('Disconnection failed', 'error');
-                });
+            }).then(() => {
+                // Clean up
+                if (streamListener) {
+                    database.ref(`devices/${connectedDeviceId}/screenStream`).off('value', streamListener);
+                    streamListener = null;
+                }
+                if (responseListener) {
+                    database.ref(`devices/${connectedDeviceId}/commandResponse`).off('value', responseListener);
+                    responseListener = null;
+                }
+                
+                connectedDeviceId = null;
+                controlPanel.style.display = 'none';
+                screenContainer.innerHTML = `
+                    <div class="screen-placeholder">
+                        <i class="fas fa-mobile-alt"></i>
+                        <p>Disconnected</p>
+                    </div>`;
+                
+                addLog('✅ Disconnected successfully', 'success');
+                showToast('Disconnected', 'success');
+            }).catch((error) => {
+                addLog(`❌ Disconnect failed: ${error.message}`, 'error');
+                showToast('Disconnect failed', 'error');
+            });
         }
 
-        // Setup Command Listener for specific device
-        function setupCommandListener(deviceId) {
-            const commandRef = database.ref(`devices/${deviceId}/commands`);
-            
-            // Listen for command responses
-            const responseListener = database.ref(`devices/${deviceId}/commandResponse`)
-                .on('value', (snapshot) => {
-                    const response = snapshot.val();
-                    if (response) {
-                        addLog(`📥 Response from device: ${JSON.stringify(response)}`, 'info');
-                        snapshot.ref.remove();
-                    }
-                });
-            
-            activeListeners[deviceId] = () => {
-                database.ref(`devices/${deviceId}/commandResponse`).off('value', responseListener);
-            };
-        }
-
-        // Send Command
+        // Command Sending
         function sendCommand(commandType) {
             if (!connectedDeviceId) {
-                showToast('No device connected. Connect to a device first.', 'warning');
+                showToast('Connect to a device first', 'warning');
                 return;
             }
-            
-            const device = devices[connectedDeviceId];
-            if (!device) {
-                showToast('Device not found', 'error');
-                return;
-            }
-            
+
             const commandId = database.ref(`devices/${connectedDeviceId}/commands`).push().key;
-            
             const command = {
                 id: commandId,
                 type: commandType,
                 timestamp: Date.now(),
                 params: {}
             };
-            
-            // Add specific parameters for certain commands
-            switch(commandType) {
-                case 'screenshot':
-                    command.params = { quality: 80, format: 'jpeg' };
-                    break;
-                case 'start_streaming':
-                    command.params = { quality: 50, fps: 15, maxWidth: 720 };
-                    break;
-                case 'stop_streaming':
-                    command.params = {};
-                    break;
-                case 'record_audio':
-                    command.params = { duration: 30, format: 'aac' };
-                    break;
-                case 'take_photo':
-                    command.params = { camera: 'back', quality: 90 };
-                    break;
-                case 'get_location':
-                    command.params = { highAccuracy: true, timeout: 10000 };
-                    break;
-            }
-            
+
+            const cmdNames = {
+                'screenshot': 'Screenshot',
+                'start_streaming': 'Start Stream',
+                'stop_streaming': 'Stop Stream',
+                'get_clipboard': 'Clipboard',
+                'list_apps': 'App List',
+                'get_notifications': 'Notifications',
+                'call_log': 'Call Log',
+                'get_sms': 'SMS',
+                'get_location': 'GPS Location',
+                'get_contacts': 'Contacts',
+                'get_device_info': 'Device Info',
+                'toggle_flashlight': 'Flashlight',
+                'record_audio': 'Record Audio',
+                'take_photo': 'Take Photo'
+            };
+
             database.ref(`devices/${connectedDeviceId}/commands/${commandId}`).set(command)
                 .then(() => {
                     commandCount++;
                     updateStats();
-                    
-                    const commandNames = {
-                        'screenshot': 'Screenshot',
-                        'start_streaming': 'Start Streaming',
-                        'stop_streaming': 'Stop Streaming',
-                        'get_clipboard': 'Get Clipboard',
-                        'list_apps': 'List Apps',
-                        'get_notifications': 'Get Notifications',
-                        'call_log': 'Call Log',
-                        'get_sms': 'Get SMS',
-                        'get_location': 'Get Location',
-                        'file_manager': 'File Manager',
-                        'record_audio': 'Record Audio',
-                        'take_photo': 'Take Photo',
-                        'toggle_flashlight': 'Toggle Flashlight'
-                    };
-                    
-                    const displayName = commandNames[commandType] || commandType;
-                    addLog(`📤 Command sent: ${displayName} (ID: ${commandId.substring(0, 8)})`, 'info');
-                    showToast(`${displayName} command sent`, 'success');
-                    
-                    // Highlight the command card briefly
-                    const cards = document.querySelectorAll('.command-card');
-                    cards.forEach(card => {
-                        if (card.querySelector('.command-label')?.textContent === displayName) {
-                            card.classList.add('sent');
-                            setTimeout(() => card.classList.remove('sent'), 1000);
-                        }
-                    });
-                    
-                    // Check if command was processed (removed by device)
-                    const checkInterval = setInterval(() => {
-                        database.ref(`devices/${connectedDeviceId}/commands/${commandId}`)
-                            .once('value', (snapshot) => {
-                                if (!snapshot.exists()) {
-                                    clearInterval(checkInterval);
-                                    addLog(`✅ Command ${displayName} processed by device`, 'success');
-                                }
-                            });
-                    }, 1000);
-                    
-                    // Stop checking after 10 seconds
-                    setTimeout(() => clearInterval(checkInterval), 10000);
+                    const cmdName = cmdNames[commandType] || commandType;
+                    addLog(`📤 Command sent: ${cmdName}`, 'info');
+                    showToast(`${cmdName} command sent`, 'success');
                 })
                 .catch((error) => {
                     addLog(`❌ Failed to send command: ${error.message}`, 'error');
@@ -1406,85 +1036,50 @@
                 });
         }
 
-        // Quick Command for device card
-        function sendQuickCommand(deviceId) {
-            // Temporarily switch to this device if needed
-            const previousDevice = connectedDeviceId;
-            connectedDeviceId = deviceId;
-            
-            // Show quick command modal or use default command
-            sendCommand('screenshot');
-            
-            // Restore previous device if needed
-            if (previousDevice && previousDevice !== deviceId) {
-                connectedDeviceId = previousDevice;
-            }
-        }
-
         // Refresh Devices
         function refreshDevices() {
             addLog('🔄 Refreshing device list...', 'info');
-            showToast('Refreshing...', 'info');
+            const fab = document.querySelector('.fab i');
+            fab.classList.add('fa-spin');
             
             database.ref('devices').once('value', (snapshot) => {
                 devices = snapshot.val() || {};
                 renderDevices();
                 updateStats();
-                addLog('✅ Device list refreshed', 'success');
+                fab.classList.remove('fa-spin');
+                addLog('✅ Device list updated', 'success');
             });
         }
 
         // Handle page unload
         window.addEventListener('beforeunload', () => {
             if (connectedDeviceId) {
-                // Use sendBeacon for reliable disconnect
+                // Use sendBeacon for reliable disconnect on page close
                 const updates = {
                     connectionStatus: 'available',
                     connectedTo: '',
                     connectionRequest: 'disconnect'
                 };
+                
                 database.ref(`devices/${connectedDeviceId}`).update(updates);
             }
         });
 
-        // Handle visibility change (tab switch)
+        // Handle visibility change
         document.addEventListener('visibilitychange', () => {
             if (document.visibilityState === 'visible') {
                 refreshDevices();
             }
         });
 
-        // Keyboard shortcuts
-        document.addEventListener('keydown', (e) => {
-            if (e.ctrlKey || e.metaKey) {
-                switch(e.key) {
-                    case 'd':
-                        e.preventDefault();
-                        disconnectDevice();
-                        break;
-                    case 'r':
-                        e.preventDefault();
-                        refreshDevices();
-                        break;
-                    case 's':
-                        e.preventDefault();
-                        sendCommand('screenshot');
-                        break;
-                }
-            }
-        });
-
-        // Initialize
+        // Initialize Application
         function init() {
-            createParticles();
-            setupDeviceListeners();
-            
-            addLog('🟢 Advanced Control Panel Started', 'success');
+            setupListeners();
+            addLog('🟢 Control Panel Started', 'success');
             addLog(`🆔 Client ID: ${myClientId}`, 'info');
             addLog('📡 Listening for devices...', 'info');
-            addLog('💡 Tip: Use Ctrl+D to disconnect, Ctrl+S for screenshot', 'info');
             
-            // Periodic refresh
+            // Periodic stats update
             setInterval(() => {
                 if (document.visibilityState === 'visible') {
                     updateStats();
@@ -1492,7 +1087,7 @@
             }, 5000);
         }
 
-        // Start the app
+        // Start the application
         init();
     </script>
 </body>
