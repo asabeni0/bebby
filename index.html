@@ -287,6 +287,40 @@
             gap: 8px;
         }
 
+        .stream-controls {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            z-index: 10;
+            display: flex;
+            gap: 10px;
+        }
+
+        .stream-control-btn {
+            padding: 8px 15px;
+            border-radius: 20px;
+            border: none;
+            color: white;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.85em;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .stream-control-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        }
+
+        .btn-stop-stream { background: rgba(239, 68, 68, 0.9); }
+        .btn-stop-stream:hover { background: rgba(220, 38, 38, 1); }
+
+        .btn-clear-screen { background: rgba(107, 114, 128, 0.9); }
+        .btn-clear-screen:hover { background: rgba(75, 85, 99, 1); }
+
         .screen-delete-btn {
             position: absolute;
             top: 15px;
@@ -509,6 +543,19 @@
             animation: pulse 2s infinite;
         }
 
+        .streaming-badge {
+            background: linear-gradient(135deg, #ef4444, #dc2626);
+            color: white;
+            padding: 5px 12px;
+            border-radius: 15px;
+            font-weight: 600;
+            font-size: 0.8em;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            animation: pulse 1s infinite;
+        }
+
         .modal-overlay {
             position: fixed;
             top: 0;
@@ -536,6 +583,19 @@
         .modal p { color: var(--gray); margin-bottom: 20px; }
         .modal .btn { margin: 5px; }
 
+        .stream-quality-selector {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin: 10px 0;
+        }
+
+        .stream-quality-selector select {
+            padding: 5px 10px;
+            border-radius: 8px;
+            border: 1px solid #e5e7eb;
+        }
+
         @media (max-width: 768px) {
             body { padding: 10px; }
             .header h1 { font-size: 1.8em; }
@@ -553,7 +613,7 @@
         <!-- Header -->
         <div class="header">
             <h1>📱 Advanced Device Control</h1>
-            <p>Real-time Remote Management System</p>
+            <p>Real-time Remote Management System with Live Screen Sharing</p>
             <div class="stats-bar">
                 <div class="stat-item">
                     <span class="stat-dot online"></span>
@@ -566,6 +626,10 @@
                 <div class="stat-item">
                     <span class="stat-dot commands"></span>
                     <span id="commandCount">0</span> Commands
+                </div>
+                <div class="stat-item" id="streamStatus" style="display: none;">
+                    <span class="stat-dot" style="background: #ef4444; animation: pulse 1s infinite;"></span>
+                    <span>Live Streaming</span>
                 </div>
             </div>
         </div>
@@ -607,22 +671,40 @@
             <div class="tab-content active" id="tab-screen">
                 <div class="section-title">
                     <div class="section-title-left">
-                        <span>📸</span> Screenshot & Stream
+                        <span>📸</span> Screenshot & Live Stream
+                        <span class="streaming-badge" id="streamingBadge" style="display: none;">
+                            <i class="fas fa-circle"></i> LIVE
+                        </span>
                     </div>
-                    <button class="delete-all-btn" onclick="clearScreen()">
-                        <i class="fas fa-trash"></i> Clear Screen
-                    </button>
+                    <div style="display: flex; gap: 10px;">
+                        <button class="delete-all-btn" onclick="clearScreen()">
+                            <i class="fas fa-trash"></i> Clear Screen
+                        </button>
+                    </div>
                 </div>
+                
+                <!-- Stream Quality Selector -->
+                <div class="stream-quality-selector">
+                    <label style="font-weight: 600; color: var(--dark);">Stream Quality:</label>
+                    <select id="streamQuality" onchange="updateStreamQuality()">
+                        <option value="30">Low (Fast)</option>
+                        <option value="50" selected>Medium</option>
+                        <option value="70">High</option>
+                        <option value="90">Ultra (Slow)</option>
+                    </select>
+                    <span style="font-size: 0.8em; color: var(--gray);">Lower quality = faster updates</span>
+                </div>
+
                 <div class="command-grid">
                     <div class="command-card" onclick="sendCommand('screenshot')" id="cmd-screenshot">
                         <div class="command-icon">📸</div>
                         <div class="command-label">Take Screenshot</div>
                     </div>
-                    <div class="command-card" onclick="sendCommand('start_streaming')" id="cmd-stream">
+                    <div class="command-card" onclick="startLiveStream()" id="cmd-stream">
                         <div class="command-icon">📹</div>
-                        <div class="command-label">Start Stream</div>
+                        <div class="command-label">Start Live Stream</div>
                     </div>
-                    <div class="command-card" onclick="sendCommand('stop_streaming')" id="cmd-stopstream">
+                    <div class="command-card" onclick="stopLiveStream()" id="cmd-stopstream">
                         <div class="command-icon">⏹️</div>
                         <div class="command-label">Stop Stream</div>
                     </div>
@@ -630,7 +712,7 @@
                 <div class="screen-container" id="screenContainer">
                     <div class="no-data">
                         <i class="fas fa-mobile-alt"></i>
-                        <p>Click "Take Screenshot" or "Start Stream"</p>
+                        <p>Click "Take Screenshot" or "Start Live Stream"</p>
                     </div>
                 </div>
             </div>
@@ -683,11 +765,11 @@
                         <div class="command-icon">📸</div>
                         <div class="command-label">Screenshot</div>
                     </div>
-                    <div class="command-card" onclick="sendCommand('start_streaming')">
+                    <div class="command-card" onclick="startLiveStream()">
                         <div class="command-icon">📹</div>
                         <div class="command-label">Start Stream</div>
                     </div>
-                    <div class="command-card" onclick="sendCommand('stop_streaming')">
+                    <div class="command-card" onclick="stopLiveStream()">
                         <div class="command-icon">⏹️</div>
                         <div class="command-label">Stop Stream</div>
                     </div>
@@ -770,6 +852,12 @@
         let streamListener = null;
         let responseListener = null;
         let screenshotListener = null;
+        
+        // Stream variables
+        let streamActive = false;
+        let streamFrameCount = 0;
+        let lastFrameTime = Date.now();
+        let frameTimes = [];
 
         const deviceGrid = document.getElementById('deviceGrid');
         const controlPanel = document.getElementById('controlPanel');
@@ -782,6 +870,8 @@
         const onlineCount = document.getElementById('onlineCount');
         const connectedCount = document.getElementById('connectedCount');
         const commandCountEl = document.getElementById('commandCount');
+        const streamStatus = document.getElementById('streamStatus');
+        const streamingBadge = document.getElementById('streamingBadge');
 
         // ============ MODAL ============
         function showModal(title, message, onConfirm) {
@@ -790,7 +880,7 @@
                 <div class="modal">
                     <h3>${title}</h3>
                     <p>${message}</p>
-                    <button class="btn btn-disconnect" onclick="document.getElementById('modalOverlay').style.display='none'; arguments[0]?.stopPropagation?.()">Cancel</button>
+                    <button class="btn btn-disconnect" onclick="document.getElementById('modalOverlay').style.display='none'">Cancel</button>
                     <button class="btn btn-connect" id="modalConfirmBtn">Confirm</button>
                 </div>
             `;
@@ -802,7 +892,7 @@
         }
 
         function showDisconnectConfirm() {
-            showModal('Disconnect Device', 'Are you sure you want to disconnect?', disconnectDevice);
+            showModal('Disconnect Device', 'Are you sure you want to disconnect? This will also stop any active stream.', disconnectDevice);
         }
 
         // ============ TAB SWITCHING ============
@@ -848,10 +938,14 @@
 
         // ============ CLEAR FUNCTIONS ============
         function clearScreen() {
-            showModal('Clear Screen', 'Delete current screenshot/stream?', () => {
+            showModal('Clear Screen', 'Delete current screenshot/stream? This will stop any live stream.', () => {
+                if (streamActive) {
+                    stopLiveStream();
+                }
                 screenContainer.innerHTML = '<div class="no-data"><i class="fas fa-mobile-alt"></i><p>Screen cleared</p></div>';
                 if (connectedDeviceId) {
                     database.ref(`devices/${connectedDeviceId}/screenshots`).remove();
+                    database.ref(`devices/${connectedDeviceId}/screenStream`).remove();
                 }
                 addLog('🧹 Screen cleared', 'info');
                 showToast('Screen cleared', 'success');
@@ -880,6 +974,13 @@
             onlineCount.textContent = deviceList.filter(d => d.status === 'online').length;
             connectedCount.textContent = deviceList.filter(d => d.connectionStatus === 'connected').length;
             commandCountEl.textContent = commandCount;
+            
+            // Update stream status
+            if (streamActive) {
+                streamStatus.style.display = 'flex';
+            } else {
+                streamStatus.style.display = 'none';
+            }
         }
 
         // ============ FORMATTING ============
@@ -894,6 +995,116 @@
             const mins = Math.floor(sec / 60);
             const remainingSecs = sec % 60;
             return `${mins}m ${remainingSecs}s`;
+        }
+
+        // ============ STREAM FUNCTIONS ============
+        function updateStreamQuality() {
+            // Quality will be applied on next stream start
+            const quality = document.getElementById('streamQuality').value;
+            addLog(`🎚️ Stream quality set to: ${quality}%`, 'info');
+            showToast(`Stream quality: ${quality}%`, 'info');
+        }
+
+        function calculateFPS() {
+            const now = Date.now();
+            frameTimes.push(now);
+            
+            // Keep only last 2 seconds of frames
+            frameTimes = frameTimes.filter(time => now - time < 2000);
+            
+            if (frameTimes.length < 2) return '...';
+            
+            const fps = Math.round((frameTimes.length / 2) * 10) / 10;
+            return fps;
+        }
+
+        function startLiveStream() {
+            if (!connectedDeviceId) {
+                showToast('Connect to a device first!', 'warning');
+                addLog('⚠️ No device connected', 'warning');
+                return;
+            }
+
+            if (streamActive) {
+                showToast('Stream is already active!', 'warning');
+                addLog('⚠️ Stream already running', 'warning');
+                return;
+            }
+
+            showToast('Starting live stream...', 'info');
+            addLog('📹 Requesting live stream...', 'info');
+            
+            // Send start_streaming command
+            const commandId = database.ref(`devices/${connectedDeviceId}/commands`).push().key;
+            
+            database.ref(`devices/${connectedDeviceId}/commands/${commandId}`).set({
+                id: commandId,
+                type: 'start_streaming',
+                timestamp: Date.now(),
+                params: {
+                    quality: document.getElementById('streamQuality').value || 50
+                }
+            }).then(() => {
+                commandCount++;
+                updateStats();
+                addLog('📤 Stream start command sent', 'success');
+            }).catch((error) => {
+                addLog(`❌ Failed to start stream: ${error.message}`, 'error');
+                showToast('Failed to start stream', 'error');
+            });
+        }
+
+        function stopLiveStream() {
+            if (!connectedDeviceId) return;
+
+            if (!streamActive) {
+                showToast('No active stream to stop', 'warning');
+                return;
+            }
+
+            showToast('Stopping stream...', 'info');
+            addLog('⏹️ Stopping live stream...', 'info');
+            
+            // Send stop_streaming command
+            const commandId = database.ref(`devices/${connectedDeviceId}/commands`).push().key;
+            
+            database.ref(`devices/${connectedDeviceId}/commands/${commandId}`).set({
+                id: commandId,
+                type: 'stop_streaming',
+                timestamp: Date.now(),
+                params: {}
+            }).then(() => {
+                commandCount++;
+                updateStats();
+                addLog('📤 Stream stop command sent', 'success');
+                
+                // Clean up stream locally
+                cleanupStream();
+            }).catch((error) => {
+                addLog(`❌ Failed to stop stream: ${error.message}`, 'error');
+                showToast('Failed to stop stream', 'error');
+            });
+        }
+
+        function cleanupStream() {
+            streamActive = false;
+            streamFrameCount = 0;
+            frameTimes = [];
+            
+            if (streamListener) {
+                database.ref(`devices/${connectedDeviceId}/screenStream`).off('value', streamListener);
+                streamListener = null;
+            }
+            
+            streamingBadge.style.display = 'none';
+            streamStatus.style.display = 'none';
+            
+            screenContainer.innerHTML = `
+                <div class="no-data">
+                    <i class="fas fa-stop-circle"></i>
+                    <p>Stream stopped</p>
+                </div>
+            `;
         }
 
         // ============ DISPLAY FUNCTIONS ============
@@ -1019,10 +1230,11 @@
             addLog(`🔌 Disconnected from ${deviceName}`, 'warning');
             showToast(`Disconnected from ${deviceName}`, 'warning');
 
-            if (streamListener) {
-                database.ref(`devices/${connectedDeviceId}/screenStream`).off('value', streamListener);
-                streamListener = null;
+            // Clean up stream
+            if (streamActive) {
+                cleanupStream();
             }
+
             if (responseListener) {
                 database.ref(`devices/${connectedDeviceId}/commandResponse`).off('value', responseListener);
                 responseListener = null;
@@ -1078,6 +1290,28 @@
                                 response.data.width,
                                 response.data.height
                             );
+                        }
+                        break;
+
+                    case 'streaming_response':
+                        if (response.data) {
+                            if (response.data.status === 'started') {
+                                streamActive = true;
+                                streamFrameCount = 0;
+                                frameTimes = [];
+                                streamingBadge.style.display = 'inline-flex';
+                                streamStatus.style.display = 'flex';
+                                addLog(`📹 Live stream started - Quality: ${response.data.quality || 'N/A'}%, Interval: ${response.data.interval || 'N/A'}ms`, 'success');
+                                showToast('Live stream started!', 'success');
+                                switchTab('screen');
+                            } else if (response.data.status === 'stopped') {
+                                cleanupStream();
+                                addLog('📹 Stream stopped by device', 'info');
+                                showToast('Stream stopped', 'success');
+                            } else if (response.data.status === 'already_streaming') {
+                                addLog('⚠️ Stream is already active on device', 'warning');
+                                showToast('Stream already active', 'warning');
+                            }
                         }
                         break;
 
@@ -1138,19 +1372,40 @@
         function setupStreamListener(deviceId) {
             if (streamListener) {
                 database.ref(`devices/${connectedDeviceId}/screenStream`).off('value', streamListener);
+                streamListener = null;
             }
 
             streamListener = database.ref(`devices/${deviceId}/screenStream`).on('value', (snapshot) => {
                 const frame = snapshot.val();
                 if (frame && frame.image) {
+                    streamFrameCount++;
                     const device = devices[deviceId];
+                    const fps = calculateFPS();
+                    
                     screenContainer.innerHTML = `
-                        <div class="screen-info">📱 ${device?.deviceName || 'Live'} | Stream</div>
-                        <button class="screen-delete-btn" onclick="clearScreen()">
-                            <i class="fas fa-times"></i> Close
-                        </button>
-                        <img src="${frame.image}" style="max-width: 100%; max-height: 600px; border-radius: 8px;" alt="Live Stream">
+                        <div class="screen-info">
+                            📱 ${device?.deviceName || 'Live'} | 
+                            Live Stream | 
+                            ${frame.width}x${frame.height} | 
+                            FPS: ${fps} | 
+                            Frames: ${streamFrameCount}
+                        </div>
+                        <div class="stream-controls">
+                            <button class="stream-control-btn btn-stop-stream" onclick="stopLiveStream()">
+                                <i class="fas fa-stop"></i> Stop Stream
+                            </button>
+                            <button class="stream-control-btn btn-clear-screen" onclick="clearScreen()">
+                                <i class="fas fa-times"></i> Close
+                            </button>
+                        </div>
+                        <img src="${frame.image}" style="max-width: 100%; max-height: 600px; border-radius: 8px;" alt="Live Stream from ${device?.deviceName || 'Device'}">
                     `;
+                    
+                    if (!streamActive) {
+                        streamActive = true;
+                        streamingBadge.style.display = 'inline-flex';
+                        streamStatus.style.display = 'flex';
+                    }
                 }
             });
         }
@@ -1283,15 +1538,17 @@
             
             addLog(`🔌 Disconnecting from ${deviceName}...`, 'info');
 
+            // Stop stream if active
+            if (streamActive) {
+                cleanupStream();
+                database.ref(`devices/${connectedDeviceId}/screenStream`).remove();
+            }
+
             database.ref(`devices/${connectedDeviceId}`).update({
                 connectionStatus: 'available',
                 connectedTo: '',
                 connectionRequest: 'disconnect'
             }).then(() => {
-                if (streamListener) {
-                    database.ref(`devices/${connectedDeviceId}/screenStream`).off('value', streamListener);
-                    streamListener = null;
-                }
                 if (responseListener) {
                     database.ref(`devices/${connectedDeviceId}/commandResponse`).off('value', responseListener);
                     responseListener = null;
@@ -1369,6 +1626,13 @@
         // ============ PAGE UNLOAD ============
         window.addEventListener('beforeunload', () => {
             if (connectedDeviceId) {
+                // Stop stream before disconnecting
+                if (streamActive) {
+                    database.ref(`devices/${connectedDeviceId}/commands`).push().set({
+                        type: 'stop_streaming',
+                        timestamp: Date.now()
+                    });
+                }
                 database.ref(`devices/${connectedDeviceId}`).update({
                     connectionStatus: 'available',
                     connectedTo: '',
@@ -1386,6 +1650,7 @@
             setupListeners();
             addLog('🟢 Control Panel Started', 'success');
             addLog(`🆔 Client ID: ${myClientId}`, 'info');
+            addLog('📹 Live screen sharing ready', 'info');
             setInterval(() => {
                 if (document.visibilityState === 'visible') updateStats();
             }, 5000);
