@@ -1,175 +1,681 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Remote Device Controller</title>
+    <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Remote Device Manager - Complete Control Panel</title>
+    
+    <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-database-compat.js"></script>
     
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: Arial, sans-serif; background: #1a1a1a; color: #fff; }
+        * { 
+            margin: 0; 
+            padding: 0; 
+            box-sizing: border-box; 
+        }
         
-        .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
-        
-        .header {
-            background: #2d2d2d;
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
             padding: 20px;
-            border-radius: 10px;
+        }
+        
+        .container { 
+            max-width: 1400px; 
+            margin: 0 auto; 
+        }
+        
+        /* Header */
+        .header {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            padding: 20px 30px;
+            border-radius: 15px;
             margin-bottom: 20px;
             display: flex;
             justify-content: space-between;
             align-items: center;
-        }
-        
-        .device-list {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            flex-wrap: wrap;
             gap: 15px;
+        }
+        
+        .header h1 { 
+            color: white; 
+            font-size: 28px;
+            font-weight: 700;
+        }
+        
+        .header-controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        
+        .status-badge {
+            padding: 10px 20px;
+            border-radius: 25px;
+            color: white;
+            font-size: 14px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.3s ease;
+        }
+        
+        .status-badge.connected { 
+            background: linear-gradient(135deg, #4CAF50, #45a049);
+        }
+        
+        .status-badge.disconnected { 
+            background: linear-gradient(135deg, #f44336, #da190b);
+        }
+        
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: white;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.2); opacity: 0.7; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        
+        /* Main Content */
+        .main-content { 
+            display: flex; 
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+        
+        /* Sidebar */
+        .sidebar {
+            flex: 0 0 380px;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            max-height: 800px;
+            overflow-y: auto;
+        }
+        
+        .sidebar h2 {
+            color: #333;
             margin-bottom: 20px;
+            font-size: 22px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
         }
         
+        .device-count {
+            background: #667eea;
+            color: white;
+            padding: 5px 12px;
+            border-radius: 15px;
+            font-size: 14px;
+        }
+        
+        /* Device Cards */
         .device-card {
-            background: #2d2d2d;
-            padding: 15px;
-            border-radius: 10px;
+            background: #ffffff;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 15px;
+            border: 2px solid #e0e0e0;
+            transition: all 0.3s ease;
             cursor: pointer;
-            transition: 0.3s;
+            position: relative;
+            overflow: hidden;
         }
         
-        .device-card:hover { background: #3d3d3d; }
-        .device-card.active { border: 2px solid #4CAF50; }
-        .device-card.online { border-left: 4px solid #4CAF50; }
-        .device-card.offline { border-left: 4px solid #f44336; opacity: 0.6; }
+        .device-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+        }
         
+        .device-card.online {
+            border-left: 5px solid #4CAF50;
+        }
+        
+        .device-card.offline {
+            border-left: 5px solid #f44336;
+            opacity: 0.6;
+        }
+        
+        .device-card.connected {
+            border: 2px solid #2196F3;
+            background: linear-gradient(135deg, #e3f2fd, #bbdefb);
+        }
+        
+        .device-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        
+        .device-name {
+            font-weight: 700;
+            font-size: 16px;
+            color: #333;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .device-status {
+            font-size: 11px;
+            padding: 5px 12px;
+            border-radius: 15px;
+            color: white;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .device-status.online { background: #4CAF50; }
+        .device-status.offline { background: #f44336; }
+        .device-status.connected-status { background: #2196F3; }
+        .device-status.busy { background: #ff9800; }
+        
+        .device-info {
+            font-size: 13px;
+            color: #666;
+            margin: 8px 0;
+            line-height: 1.6;
+        }
+        
+        .device-info i {
+            width: 20px;
+            text-align: center;
+            margin-right: 5px;
+        }
+        
+        .device-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 12px;
+        }
+        
+        /* Buttons */
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 13px;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            justify-content: center;
+        }
+        
+        .btn:hover { 
+            transform: translateY(-2px); 
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2); 
+        }
+        
+        .btn:active {
+            transform: translateY(0);
+        }
+        
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .btn-connect { 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            flex: 1;
+        }
+        
+        .btn-disconnect {
+            background: linear-gradient(135deg, #f44336, #da190b);
+            color: white;
+        }
+        
+        .btn-control {
+            background: linear-gradient(135deg, #2196F3, #1976D2);
+            color: white;
+            flex: 1;
+            min-width: 100px;
+        }
+        
+        .btn-stream-start {
+            background: linear-gradient(135deg, #4CAF50, #45a049);
+            color: white;
+        }
+        
+        .btn-stream-stop {
+            background: linear-gradient(135deg, #f44336, #da190b);
+            color: white;
+        }
+        
+        /* Control Panel */
+        .control-panel {
+            flex: 1;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            display: none;
+            min-width: 300px;
+        }
+        
+        .control-panel.active { 
+            display: block; 
+        }
+        
+        .no-device-selected {
+            text-align: center;
+            padding: 80px 20px;
+            color: #999;
+        }
+        
+        .no-device-selected h2 {
+            font-size: 28px;
+            margin-bottom: 15px;
+            color: #666;
+        }
+        
+        .no-device-selected p {
+            font-size: 16px;
+            color: #999;
+        }
+        
+        .device-controls-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+        
+        .device-controls-header h2 {
+            color: #333;
+            font-size: 24px;
+        }
+        
+        .control-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        
+        /* Screen Container */
         .screen-container {
-            background: #2d2d2d;
-            border-radius: 10px;
+            background: #000;
+            border-radius: 12px;
             overflow: hidden;
             margin-bottom: 20px;
-        }
-        
-        .screen-header {
-            background: #3d3d3d;
-            padding: 15px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
+            position: relative;
+            border: 3px solid #333;
         }
         
         #deviceScreen {
             width: 100%;
-            max-height: 600px;
+            max-height: 500px;
             object-fit: contain;
+            display: block;
             cursor: crosshair;
-            background: #000;
         }
         
-        .controls {
-            background: #2d2d2d;
-            padding: 20px;
-            border-radius: 10px;
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 15px;
-        }
-        
-        button {
-            padding: 12px 20px;
-            border: none;
+        .screen-overlay {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 5px 10px;
             border-radius: 5px;
-            cursor: pointer;
-            font-size: 14px;
-            font-weight: bold;
-            transition: 0.3s;
+            font-size: 12px;
         }
         
-        .btn-stream { background: #4CAF50; color: white; }
-        .btn-stop { background: #f44336; color: white; }
-        .btn-home { background: #2196F3; color: white; }
-        .btn-back { background: #FF9800; color: white; }
-        .btn-recents { background: #9C27B0; color: white; }
-        
-        button:hover { opacity: 0.8; transform: scale(1.05); }
-        
-        .status { padding: 10px; background: #333; border-radius: 5px; margin: 10px 0; }
-        
-        .touch-controls {
-            margin-top: 20px;
-            padding: 20px;
-            background: #2d2d2d;
+        /* Streaming Status */
+        .streaming-status {
+            padding: 12px 15px;
+            background: #fff3cd;
             border-radius: 10px;
+            margin: 15px 0;
+            display: none;
+            align-items: center;
+            gap: 10px;
+            border: 1px solid #ffc107;
+        }
+        
+        .streaming-status.active {
+            display: flex;
+        }
+        
+        .pulse-dot {
+            width: 12px;
+            height: 12px;
+            background: #ff9800;
+            border-radius: 50%;
+            animation: pulseDot 1.5s infinite;
+        }
+        
+        @keyframes pulseDot {
+            0% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.5); opacity: 0.3; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        
+        /* Control Groups */
+        .control-group {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 15px;
+        }
+        
+        .control-group h3 {
+            color: #555;
+            margin-bottom: 15px;
+            font-size: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .control-buttons-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+            gap: 10px;
         }
         
         .gesture-buttons {
             display: flex;
             gap: 10px;
             flex-wrap: wrap;
-            margin-top: 10px;
+            margin-bottom: 15px;
         }
         
-        input[type="text"] {
-            padding: 10px;
-            border-radius: 5px;
-            border: 1px solid #555;
+        .gesture-btn {
+            padding: 10px 20px;
+            border: 2px solid #667eea;
+            background: white;
+            border-radius: 25px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 600;
+            font-size: 14px;
+        }
+        
+        .gesture-btn:hover {
+            background: #f0f0ff;
+        }
+        
+        .gesture-btn.active {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border-color: transparent;
+        }
+        
+        .text-input-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        
+        #textInput {
+            flex: 1;
+            padding: 12px 15px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+        
+        #textInput:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        /* Toast Notifications */
+        .toast {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
             background: #333;
             color: white;
-            width: 100%;
+            padding: 15px 25px;
+            border-radius: 10px;
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.3);
+            animation: slideIn 0.3s ease;
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+        
+        .toast.success { background: #4CAF50; }
+        .toast.error { background: #f44336; }
+        .toast.info { background: #2196F3; }
+        
+        /* Loading Spinner */
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #999;
+        }
+        
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .sidebar {
+                flex: 0 0 100%;
+            }
+            
+            .control-panel {
+                padding: 20px;
+            }
+            
+            .control-buttons-grid {
+                grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+            }
+            
+            .header h1 {
+                font-size: 22px;
+            }
+        }
+        
+        /* Scrollbar Styling */
+        .sidebar::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        .sidebar::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 10px;
+        }
+        
+        .sidebar::-webkit-scrollbar-thumb {
+            background: #667eea;
+            border-radius: 10px;
+        }
+        
+        .sidebar::-webkit-scrollbar-thumb:hover {
+            background: #764ba2;
         }
     </style>
 </head>
 <body>
     <div class="container">
+        <!-- Header -->
         <div class="header">
-            <h1>📱 Device Remote Controller</h1>
-            <div>
-                <span id="connectionStatus">🟡 Connecting...</span>
+            <h1>📱 Remote Device Manager</h1>
+            <div class="header-controls">
+                <span class="status-badge disconnected" id="connectionStatus">
+                    <span class="status-dot"></span>
+                    Disconnected from Server
+                </span>
+                <button class="btn btn-control" onclick="refreshDevices()" style="min-width: auto;">
+                    🔄 Refresh
+                </button>
             </div>
         </div>
         
-        <!-- Device Selection -->
-        <div id="deviceList" class="device-list"></div>
-        
-        <!-- Screen Display -->
-        <div class="screen-container" id="screenContainer" style="display:none;">
-            <div class="screen-header">
-                <h3>Device Screen - <span id="selectedDevice">None</span></h3>
-                <div>
-                    <button class="btn-stream" onclick="startStreaming()">▶ Start Stream</button>
-                    <button class="btn-stop" onclick="stopStreaming()">⏹ Stop Stream</button>
+        <!-- Main Content -->
+        <div class="main-content">
+            <!-- Device List Sidebar -->
+            <div class="sidebar">
+                <h2>
+                    📋 Available Devices
+                    <span class="device-count" id="deviceCount">0</span>
+                </h2>
+                <div id="deviceList">
+                    <div class="loading">
+                        <div class="spinner"></div>
+                        <p>Loading devices...</p>
+                    </div>
                 </div>
             </div>
-            <img id="deviceScreen" alt="Device Screen" />
-        </div>
-        
-        <!-- Control Buttons -->
-        <div class="controls" id="controls" style="display:none;">
-            <button class="btn-home" onclick="sendKeyEvent(3)">🏠 Home</button>
-            <button class="btn-back" onclick="sendKeyEvent(4)">⬅ Back</button>
-            <button class="btn-recents" onclick="sendKeyEvent(187)">📋 Recents</button>
-            <button class="btn-stream" onclick="sendKeyEvent(24)">🔊 Vol Up</button>
-            <button class="btn-stop" onclick="sendKeyEvent(25)">🔉 Vol Down</button>
-        </div>
-        
-        <!-- Touch Controls -->
-        <div class="touch-controls" id="touchControls" style="display:none;">
-            <h3>🖱 Touch Controls</h3>
-            <p>Click or drag on screen to interact</p>
-            <div class="gesture-buttons">
-                <button onclick="setGestureMode('tap')">👆 Tap</button>
-                <button onclick="setGestureMode('swipe')">👈 Swipe</button>
-                <button onclick="setGestureMode('longpress')">⏱ Long Press</button>
+            
+            <!-- Control Panel -->
+            <div class="control-panel" id="controlPanel">
+                <div id="noDeviceSelected" class="no-device-selected">
+                    <h2>👈 Select a Device</h2>
+                    <p>Click on a device from the list to start controlling it</p>
+                    <p style="font-size: 48px; margin-top: 20px;">📱</p>
+                </div>
+                
+                <div id="deviceControls" style="display: none;">
+                    <div class="device-controls-header">
+                        <h2 id="connectedDeviceName">Connected Device</h2>
+                        <div class="control-actions">
+                            <button class="btn btn-stream-start" onclick="startStreaming()">
+                                ▶ Start Stream
+                            </button>
+                            <button class="btn btn-stream-stop" onclick="stopStreaming()">
+                                ⏹ Stop Stream
+                            </button>
+                            <button class="btn btn-disconnect" onclick="disconnectDevice()">
+                                🔌 Disconnect
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Streaming Status -->
+                    <div class="streaming-status" id="streamingStatus">
+                        <div class="pulse-dot"></div>
+                        <span>Screen streaming active...</span>
+                    </div>
+                    
+                    <!-- Screen Display -->
+                    <div class="screen-container">
+                        <img id="deviceScreen" alt="Device Screen" src="" />
+                        <div class="screen-overlay" id="screenInfo">0×0</div>
+                    </div>
+                    
+                    <!-- Navigation Controls -->
+                    <div class="control-group">
+                        <h3>🎮 Navigation Controls</h3>
+                        <div class="control-buttons-grid">
+                            <button class="btn btn-control" onclick="sendKey(3)">🏠 Home</button>
+                            <button class="btn btn-control" onclick="sendKey(4)">⬅ Back</button>
+                            <button class="btn btn-control" onclick="sendKey(187)">📋 Recent</button>
+                            <button class="btn btn-control" onclick="sendKey(24)">🔊 Vol+</button>
+                            <button class="btn btn-control" onclick="sendKey(25)">🔉 Vol-</button>
+                            <button class="btn btn-control" onclick="sendKey(26)">🔒 Power</button>
+                            <button class="btn btn-control" onclick="sendKey(82)">📱 Menu</button>
+                            <button class="btn btn-control" onclick="sendKey(84)">🔍 Search</button>
+                        </div>
+                    </div>
+                    
+                    <!-- Touch Controls -->
+                    <div class="control-group">
+                        <h3>🖱 Touch Controls</h3>
+                        <div class="gesture-buttons">
+                            <button class="gesture-btn active" onclick="setGestureMode('tap')">
+                                👆 Tap
+                            </button>
+                            <button class="gesture-btn" onclick="setGestureMode('swipe')">
+                                👈 Swipe
+                            </button>
+                            <button class="gesture-btn" onclick="setGestureMode('longpress')">
+                                ⏱ Long Press
+                            </button>
+                            <button class="gesture-btn" onclick="setGestureMode('scroll')">
+                                📜 Scroll
+                            </button>
+                        </div>
+                        <div class="text-input-group">
+                            <input type="text" id="textInput" 
+                                   placeholder="Type text and press Enter to send..." 
+                                   onkeypress="if(event.key==='Enter') sendText()">
+                            <button class="btn btn-control" onclick="sendText()" style="flex: none;">
+                                📝 Send
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Quick Actions -->
+                    <div class="control-group">
+                        <h3>⚡ Quick Actions</h3>
+                        <div class="control-buttons-grid">
+                            <button class="btn btn-control" onclick="sendKey(66)" style="background: #ff9800;">
+                                🌐 Browser
+                            </button>
+                            <button class="btn btn-control" onclick="sendKey(207)" style="background: #9c27b0;">
+                                📷 Camera
+                            </button>
+                            <button class="btn btn-control" onclick="takeScreenshot()" style="background: #00bcd4;">
+                                📸 Screenshot
+                            </button>
+                        </div>
+                    </div>
+                </div>
             </div>
-            <input type="text" id="textInput" placeholder="Type text to send..." 
-                   onkeypress="if(event.key==='Enter') sendText()">
-            <button onclick="sendText()">📝 Send Text</button>
         </div>
-        
-        <div id="statusLog" class="status"></div>
     </div>
+    
+    <!-- Toast Container -->
+    <div id="toastContainer"></div>
 
     <script>
-        // Firebase Configuration
+        // ==================== FIREBASE CONFIGURATION ====================
         const firebaseConfig = {
             apiKey: "AIzaSyDMddaD1sSCjzdT0cYlvcSPl8V-vADWLrw",
             authDomain: "newprooject-c6f66.firebaseapp.com",
@@ -182,233 +688,641 @@
         
         // Initialize Firebase
         firebase.initializeApp(firebaseConfig);
-        const database = firebase.database();
+        const db = firebase.database();
         
-        // Global variables
+        // ==================== GLOBAL VARIABLES ====================
         let selectedDeviceId = null;
+        let selectedDeviceInfo = null;
         let gestureMode = 'tap';
-        let isStreaming = false;
         let screenScaleX = 1;
         let screenScaleY = 1;
+        let screenListener = null;
+        let isStreaming = false;
+        let swipeStartX = 0;
+        let swipeStartY = 0;
+        let longPressTimer = null;
+        let frameCount = 0;
         
-        // Connection status
-        database.ref('.info/connected').on('value', (snap) => {
-            if (snap.val() === true) {
-                document.getElementById('connectionStatus').innerHTML = '🟢 Connected';
+        // ==================== FIREBASE CONNECTION STATUS ====================
+        function updateConnectionStatus(connected) {
+            const badge = document.getElementById('connectionStatus');
+            if (connected) {
+                badge.innerHTML = '<span class="status-dot"></span> Connected to Server';
+                badge.className = 'status-badge connected';
             } else {
-                document.getElementById('connectionStatus').innerHTML = '🔴 Disconnected';
+                badge.innerHTML = '<span class="status-dot"></span> Disconnected from Server';
+                badge.className = 'status-badge disconnected';
             }
+        }
+        
+        // Monitor Firebase connection
+        db.ref('.info/connected').on('value', (snap) => {
+            updateConnectionStatus(snap.val() === true);
         });
         
-        // Load device list
+        // ==================== DEVICE MANAGEMENT ====================
         function loadDevices() {
-            database.ref('devices').on('value', (snapshot) => {
-                const deviceList = document.getElementById('deviceList');
+            const deviceList = document.getElementById('deviceList');
+            deviceList.innerHTML = '<div class="loading"><div class="spinner"></div><p>Loading devices...</p></div>';
+            
+            db.ref('devices').on('value', (snapshot) => {
                 deviceList.innerHTML = '';
+                let onlineCount = 0;
                 
-                snapshot.forEach((childSnapshot) => {
-                    const device = childSnapshot.val();
-                    const deviceId = childSnapshot.key;
-                    const isOnline = (Date.now() - device.lastSeen) < 60000; // Online if seen in last 60 seconds
+                if (!snapshot.exists()) {
+                    deviceList.innerHTML = `
+                        <div style="text-align:center; padding: 40px; color: #999;">
+                            <p style="font-size: 48px;">📱</p>
+                            <p style="margin-top: 15px; font-size: 16px;">No devices found</p>
+                            <p style="font-size: 13px; margin-top: 5px;">Waiting for devices to connect...</p>
+                        </div>`;
+                    document.getElementById('deviceCount').textContent = '0';
+                    return;
+                }
+                
+                const devices = [];
+                snapshot.forEach((child) => {
+                    devices.push({
+                        id: child.key,
+                        data: child.val()
+                    });
+                });
+                
+                // Sort by online status and last seen
+                devices.sort((a, b) => {
+                    const aOnline = (Date.now() - a.data.lastSeen) < 30000;
+                    const bOnline = (Date.now() - b.data.lastSeen) < 30000;
+                    if (aOnline && !bOnline) return -1;
+                    if (!aOnline && bOnline) return 1;
+                    return b.data.lastSeen - a.data.lastSeen;
+                });
+                
+                devices.forEach((device) => {
+                    const deviceData = device.data;
+                    const deviceId = device.id;
+                    const isOnline = (Date.now() - deviceData.lastSeen) < 30000;
+                    const isConnected = deviceData.connectionStatus === 'connected';
+                    const isSelected = deviceId === selectedDeviceId;
+                    
+                    if (isOnline) onlineCount++;
                     
                     const card = document.createElement('div');
-                    card.className = `device-card ${isOnline ? 'online' : 'offline'} ${deviceId === selectedDeviceId ? 'active' : ''}`;
-                    card.onclick = () => selectDevice(deviceId);
+                    card.className = `device-card ${isOnline ? 'online' : 'offline'} ${isConnected ? 'connected' : ''}`;
+                    
+                    let statusText = 'Offline';
+                    let statusClass = 'offline';
+                    
+                    if (isConnected) {
+                        statusText = 'Connected';
+                        statusClass = 'connected-status';
+                    } else if (isOnline) {
+                        statusText = 'Online';
+                        statusClass = 'online';
+                    } else if (deviceData.connectionStatus === 'busy') {
+                        statusText = 'Busy';
+                        statusClass = 'busy';
+                    }
+                    
+                    const lastSeen = new Date(deviceData.lastSeen);
+                    const lastSeenText = isOnline ? 'Online now' : 
+                        `${lastSeen.toLocaleDateString()} ${lastSeen.toLocaleTimeString()}`;
                     
                     card.innerHTML = `
-                        <h3>📱 ${device.deviceName || 'Unknown'}</h3>
-                        <p>Android ${device.androidVersion || 'N/A'}</p>
-                        <p>Screen: ${device.screenWidth || '?'}x${device.screenHeight || '?'}</p>
-                        <p>Status: ${isOnline ? '🟢 Online' : '🔴 Offline'}</p>
-                        <p>Streaming: ${device.streaming_status || 'inactive'}</p>
-                        <p>Last seen: ${new Date(device.lastSeen).toLocaleTimeString()}</p>
+                        <div class="device-header">
+                            <span class="device-name">
+                                📱 ${deviceData.deviceName || 'Unknown Device'}
+                            </span>
+                            <span class="device-status ${statusClass}">${statusText}</span>
+                        </div>
+                        <div class="device-info">
+                            <div>📋 ${deviceData.manufacturer || 'Unknown'} ${deviceData.deviceName || ''}</div>
+                            <div>🤖 Android ${deviceData.androidVersion || 'N/A'} (SDK ${deviceData.sdkVersion || '?'})</div>
+                            <div>📐 Screen: ${deviceData.screenWidth || '?'}×${deviceData.screenHeight || '?'}</div>
+                            <div>🕒 ${lastSeenText}</div>
+                            ${deviceData.connectedTo ? `<div>🔗 Connected to: ${deviceData.connectedTo}</div>` : ''}
+                        </div>
+                        <div class="device-actions">
+                            ${!isConnected ? 
+                                `<button class="btn btn-connect" onclick="connectToDevice('${deviceId}')" ${!isOnline ? 'disabled' : ''}>
+                                    🔗 Connect
+                                </button>` :
+                                `<button class="btn btn-disconnect" onclick="disconnectDevice()" style="width: 100%;">
+                                    🔌 Disconnect
+                                </button>`
+                            }
+                        </div>
                     `;
+                    
+                    // Make card clickable for selection
+                    card.addEventListener('click', (e) => {
+                        if (e.target.tagName !== 'BUTTON') {
+                            if (isOnline && !isConnected) {
+                                connectToDevice(deviceId);
+                            }
+                        }
+                    });
                     
                     deviceList.appendChild(card);
                 });
+                
+                document.getElementById('deviceCount').textContent = devices.length;
+                
+                // Show toast for new online devices
+                if (onlineCount > 0 && devices.length > 0) {
+                    // Auto-refresh count
+                }
             });
         }
         
-        // Select device to control
-        function selectDevice(deviceId) {
-            selectedDeviceId = deviceId;
-            document.getElementById('selectedDevice').textContent = deviceId;
-            document.getElementById('screenContainer').style.display = 'block';
-            document.getElementById('controls').style.display = 'block';
-            document.getElementById('touchControls').style.display = 'block';
+        // ==================== DEVICE CONNECTION ====================
+        function connectToDevice(deviceId) {
+            if (selectedDeviceId === deviceId) {
+                showToast('Already connected to this device', 'info');
+                return;
+            }
             
-            // Start listening to screen updates
-            listenToScreen(deviceId);
+            if (selectedDeviceId) {
+                disconnectDevice();
+            }
             
-            logStatus('Selected device: ' + deviceId);
+            showToast('Sending connection request...', 'info');
+            
+            // Set connection request
+            db.ref('devices/' + deviceId + '/connectionRequest').set('connect');
+            
+            // Listen for connection acceptance
+            const connectionRef = db.ref('devices/' + deviceId + '/connectionStatus');
+            let connectionTimeout;
+            
+            const connectionHandler = connectionRef.on('value', (snapshot) => {
+                if (snapshot.val() === 'connected') {
+                    clearTimeout(connectionTimeout);
+                    connectionRef.off('value', connectionHandler);
+                    
+                    selectedDeviceId = deviceId;
+                    
+                    // Get device info
+                    db.ref('devices/' + deviceId).once('value', (deviceSnapshot) => {
+                        selectedDeviceInfo = deviceSnapshot.val();
+                        
+                        // Show control panel
+                        document.getElementById('controlPanel').classList.add('active');
+                        document.getElementById('noDeviceSelected').style.display = 'none';
+                        document.getElementById('deviceControls').style.display = 'block';
+                        document.getElementById('connectedDeviceName').textContent = 
+                            `📱 ${selectedDeviceInfo.deviceName || 'Device'} (${deviceId.substring(0, 8)}...)`;
+                        
+                        // Set screen dimensions
+                        screenScaleX = 1;
+                        screenScaleY = 1;
+                        
+                        // Start listening to screen
+                        listenToScreen(deviceId);
+                        
+                        showToast('Connected successfully!', 'success');
+                    });
+                }
+            });
+            
+            // Timeout after 15 seconds
+            connectionTimeout = setTimeout(() => {
+                connectionRef.off('value', connectionHandler);
+                db.ref('devices/' + deviceId + '/connectionRequest').remove();
+                if (!selectedDeviceId) {
+                    showToast('Connection timeout. Device not responding.', 'error');
+                }
+            }, 15000);
         }
         
-        // Listen for screen updates
+        function disconnectDevice() {
+            if (!selectedDeviceId) return;
+            
+            // Send disconnect request
+            db.ref('devices/' + selectedDeviceId + '/connectionRequest').set('disconnect');
+            
+            // Stop streaming
+            stopStreaming();
+            
+            // Remove screen listener
+            if (screenListener) {
+                db.ref('devices/' + selectedDeviceId + '/screen').off('value', screenListener);
+                screenListener = null;
+            }
+            
+            // Reset UI
+            selectedDeviceId = null;
+            selectedDeviceInfo = null;
+            document.getElementById('controlPanel').classList.remove('active');
+            document.getElementById('deviceControls').style.display = 'none';
+            document.getElementById('noDeviceSelected').style.display = 'block';
+            document.getElementById('streamingStatus').classList.remove('active');
+            document.getElementById('deviceScreen').src = '';
+            document.getElementById('screenInfo').textContent = '0×0';
+            
+            showToast('Disconnected from device', 'info');
+        }
+        
+        // ==================== SCREEN STREAMING ====================
         function listenToScreen(deviceId) {
-            database.ref('devices/' + deviceId + '/screen').on('value', (snapshot) => {
-                const screenData = snapshot.val();
-                if (screenData && screenData.image) {
-                    const screenImg = document.getElementById('deviceScreen');
-                    screenImg.src = 'data:image/jpeg;base64,' + screenData.image;
+            if (screenListener) {
+                db.ref('devices/' + selectedDeviceId + '/screen').off('value', screenListener);
+            }
+            
+            screenListener = db.ref('devices/' + deviceId + '/screen').on('value', (snapshot) => {
+                const data = snapshot.val();
+                if (data && data.image) {
+                    const screen = document.getElementById('deviceScreen');
+                    screen.src = 'data:image/jpeg;base64,' + data.image;
                     
-                    // Update scale factors for touch coordinates
-                    if (screenData.width && screenData.height) {
-                        screenScaleX = screenData.width / screenImg.clientWidth;
-                        screenScaleY = screenData.height / screenImg.clientHeight;
+                    if (!isStreaming) {
+                        isStreaming = true;
+                        document.getElementById('streamingStatus').classList.add('active');
+                    }
+                    
+                    if (data.width && data.height) {
+                        screenScaleX = data.width / screen.clientWidth;
+                        screenScaleY = data.height / screen.clientHeight;
+                        document.getElementById('screenInfo').textContent = 
+                            `${data.width}×${data.height} | Frame: ${++frameCount}`;
                     }
                 }
             });
         }
         
-        // Send command to device
-        function sendCommand(commandData) {
+        function startStreaming() {
             if (!selectedDeviceId) {
-                alert('Please select a device first');
+                showToast('No device connected', 'error');
                 return;
             }
             
-            const commandRef = database.ref('devices/' + selectedDeviceId + '/commands').push();
-            commandRef.set(commandData)
-                .then(() => logStatus('Command sent: ' + JSON.stringify(commandData)))
-                .catch((error) => logStatus('Error: ' + error));
-        }
-        
-        // Start/Stop streaming
-        function startStreaming() {
             sendCommand({ type: 'start_streaming' });
-            isStreaming = true;
-            logStatus('Started streaming');
+            showToast('Starting screen stream...', 'info');
         }
         
         function stopStreaming() {
+            if (!selectedDeviceId) return;
+            
             sendCommand({ type: 'stop_streaming' });
             isStreaming = false;
-            logStatus('Stopped streaming');
+            frameCount = 0;
+            document.getElementById('streamingStatus').classList.remove('active');
+            document.getElementById('deviceScreen').src = '';
+            document.getElementById('screenInfo').textContent = '0×0';
+            showToast('Streaming stopped', 'info');
         }
         
-        // Touch/Swipe on screen
+        // ==================== COMMAND SENDING ====================
+        function sendCommand(data) {
+            if (!selectedDeviceId) {
+                showToast('No device connected', 'error');
+                return;
+            }
+            
+            const commandRef = db.ref('devices/' + selectedDeviceId + '/commands').push();
+            commandRef.set(data)
+                .then(() => {
+                    console.log('Command sent:', data);
+                })
+                .catch((error) => {
+                    console.error('Error sending command:', error);
+                    showToast('Failed to send command', 'error');
+                });
+        }
+        
+        function sendKey(keyCode) {
+            sendCommand({ 
+                type: 'key_event', 
+                keyCode: keyCode 
+            });
+            showToast(`Key event sent: ${keyCode}`, 'info');
+        }
+        
+        function sendText() {
+            const textInput = document.getElementById('textInput');
+            const text = textInput.value.trim();
+            
+            if (!text) {
+                showToast('Please enter text', 'error');
+                return;
+            }
+            
+            sendCommand({ 
+                type: 'text_input', 
+                text: text 
+            });
+            
+            textInput.value = '';
+            showToast('Text sent', 'success');
+        }
+        
+        function sendTouch(x, y) {
+            sendCommand({ 
+                type: 'touch', 
+                x: Math.round(x), 
+                y: Math.round(y) 
+            });
+        }
+        
+        function sendSwipe(startX, startY, endX, endY) {
+            sendCommand({
+                type: 'swipe',
+                startX: Math.round(startX),
+                startY: Math.round(startY),
+                endX: Math.round(endX),
+                endY: Math.round(endY)
+            });
+        }
+        
+        function sendLongPress(x, y) {
+            sendCommand({
+                type: 'longpress',
+                x: Math.round(x),
+                y: Math.round(y)
+            });
+        }
+        
+        function takeScreenshot() {
+            if (!selectedDeviceId) {
+                showToast('No device connected', 'error');
+                return;
+            }
+            
+            sendCommand({ type: 'screenshot' });
+            showToast('Taking screenshot...', 'info');
+        }
+        
+        // ==================== GESTURE MODE ====================
+        function setGestureMode(mode) {
+            gestureMode = mode;
+            
+            // Update UI
+            document.querySelectorAll('.gesture-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            
+            event.target.classList.add('active');
+            
+            // Update cursor
+            const screen = document.getElementById('deviceScreen');
+            switch(mode) {
+                case 'tap':
+                    screen.style.cursor = 'pointer';
+                    break;
+                case 'swipe':
+                    screen.style.cursor = 'grab';
+                    break;
+                case 'longpress':
+                    screen.style.cursor = 'wait';
+                    break;
+                case 'scroll':
+                    screen.style.cursor = 'all-scroll';
+                    break;
+            }
+            
+            showToast(`Gesture mode: ${mode}`, 'info');
+        }
+        
+        // ==================== SCREEN INTERACTION ====================
+        function getScreenCoordinates(e) {
+            const screen = document.getElementById('deviceScreen');
+            const rect = screen.getBoundingClientRect();
+            
+            let clientX, clientY;
+            
+            if (e.touches) {
+                // Touch event
+                clientX = e.touches[0]?.clientX || e.changedTouches[0]?.clientX;
+                clientY = e.touches[0]?.clientY || e.changedTouches[0]?.clientY;
+            } else {
+                // Mouse event
+                clientX = e.clientX;
+                clientY = e.clientY;
+            }
+            
+            const x = (clientX - rect.left) * screenScaleX;
+            const y = (clientY - rect.top) * screenScaleY;
+            
+            return { x, y };
+        }
+        
+        // Initialize screen interaction after DOM load
         document.addEventListener('DOMContentLoaded', () => {
             const screen = document.getElementById('deviceScreen');
-            let startX, startY, isTouching = false;
             
+            // Mouse Events
             screen.addEventListener('mousedown', (e) => {
-                const rect = screen.getBoundingClientRect();
-                startX = (e.clientX - rect.left) * screenScaleX;
-                startY = (e.clientY - rect.top) * screenScaleY;
-                isTouching = true;
+                if (!selectedDeviceId) return;
                 
-                if (gestureMode === 'tap') {
-                    sendCommand({
-                        type: 'touch',
-                        x: Math.round(startX),
-                        y: Math.round(startY)
-                    });
+                const coords = getScreenCoordinates(e);
+                
+                if (gestureMode === 'swipe' || gestureMode === 'scroll') {
+                    swipeStartX = coords.x;
+                    swipeStartY = coords.y;
+                    screen.style.cursor = gestureMode === 'swipe' ? 'grabbing' : 'all-scroll';
+                } else if (gestureMode === 'longpress') {
+                    longPressTimer = setTimeout(() => {
+                        sendLongPress(coords.x, coords.y);
+                        showToast('Long press sent', 'info');
+                    }, 500);
                 }
             });
             
             screen.addEventListener('mousemove', (e) => {
-                if (!isTouching && gestureMode !== 'swipe') return;
-                
-                const rect = screen.getBoundingClientRect();
-                const currentX = (e.clientX - rect.left) * screenScaleX;
-                const currentY = (e.clientY - rect.top) * screenScaleY;
-                
-                if (gestureMode === 'swipe') {
-                    sendCommand({
-                        type: 'swipe',
-                        startX: Math.round(startX),
-                        startY: Math.round(startY),
-                        endX: Math.round(currentX),
-                        endY: Math.round(currentY)
-                    });
-                }
+                if (!selectedDeviceId || !('swipeStartX' in window)) return;
+                // Handle drag preview if needed
             });
             
             screen.addEventListener('mouseup', (e) => {
-                const rect = screen.getBoundingClientRect();
-                const endX = (e.clientX - rect.left) * screenScaleX;
-                const endY = (e.clientY - rect.top) * screenScaleY;
+                if (!selectedDeviceId) return;
                 
-                if (gestureMode === 'longpress') {
-                    sendCommand({
-                        type: 'long_press',
-                        x: Math.round(endX),
-                        y: Math.round(endY)
-                    });
+                clearTimeout(longPressTimer);
+                
+                const coords = getScreenCoordinates(e);
+                
+                if (gestureMode === 'tap') {
+                    sendTouch(coords.x, coords.y);
+                } else if (gestureMode === 'swipe') {
+                    if (swipeStartX && swipeStartY) {
+                        sendSwipe(swipeStartX, swipeStartY, coords.x, coords.y);
+                        swipeStartX = 0;
+                        swipeStartY = 0;
+                    }
+                } else if (gestureMode === 'scroll') {
+                    if (swipeStartX && swipeStartY) {
+                        const deltaY = coords.y - swipeStartY;
+                        sendSwipe(swipeStartX, swipeStartY, swipeStartX, swipeStartY - deltaY * 2);
+                        swipeStartX = 0;
+                        swipeStartY = 0;
+                    }
                 }
                 
-                isTouching = false;
+                screen.style.cursor = gestureMode === 'swipe' ? 'grab' : 
+                                     gestureMode === 'tap' ? 'pointer' : 
+                                     gestureMode === 'longpress' ? 'wait' : 'all-scroll';
             });
             
-            // Touch events for mobile
+            screen.addEventListener('mouseleave', () => {
+                clearTimeout(longPressTimer);
+                swipeStartX = 0;
+                swipeStartY = 0;
+            });
+            
+            // Touch Events for Mobile
             screen.addEventListener('touchstart', (e) => {
                 e.preventDefault();
-                const touch = e.touches[0];
-                const rect = screen.getBoundingClientRect();
-                startX = (touch.clientX - rect.left) * screenScaleX;
-                startY = (touch.clientY - rect.top) * screenScaleY;
+                if (!selectedDeviceId) return;
                 
-                sendCommand({
-                    type: 'touch',
-                    x: Math.round(startX),
-                    y: Math.round(startY)
-                });
+                const coords = getScreenCoordinates(e);
+                
+                if (gestureMode === 'swipe' || gestureMode === 'scroll') {
+                    swipeStartX = coords.x;
+                    swipeStartY = coords.y;
+                } else if (gestureMode === 'longpress') {
+                    longPressTimer = setTimeout(() => {
+                        sendLongPress(coords.x, coords.y);
+                        showToast('Long press sent', 'info');
+                    }, 500);
+                }
             });
             
-            screen.addEventListener('touchmove', (e) => {
+            screen.addEventListener('touchend', (e) => {
                 e.preventDefault();
-                const touch = e.touches[0];
-                const rect = screen.getBoundingClientRect();
-                const currentX = (touch.clientX - rect.left) * screenScaleX;
-                const currentY = (touch.clientY - rect.top) * screenScaleY;
+                if (!selectedDeviceId) return;
                 
-                sendCommand({
-                    type: 'swipe',
-                    startX: Math.round(startX),
-                    startY: Math.round(startY),
-                    endX: Math.round(currentX),
-                    endY: Math.round(currentY)
-                });
+                clearTimeout(longPressTimer);
+                
+                const coords = getScreenCoordinates(e);
+                
+                if (gestureMode === 'tap') {
+                    sendTouch(coords.x, coords.y);
+                } else if (gestureMode === 'swipe') {
+                    if (swipeStartX && swipeStartY) {
+                        sendSwipe(swipeStartX, swipeStartY, coords.x, coords.y);
+                        swipeStartX = 0;
+                        swipeStartY = 0;
+                    }
+                } else if (gestureMode === 'scroll') {
+                    if (swipeStartX && swipeStartY) {
+                        const deltaY = coords.y - swipeStartY;
+                        sendSwipe(swipeStartX, swipeStartY, swipeStartX, swipeStartY - deltaY * 2);
+                        swipeStartX = 0;
+                        swipeStartY = 0;
+                    }
+                }
             });
         });
         
-        // Set gesture mode
-        function setGestureMode(mode) {
-            gestureMode = mode;
-            logStatus('Gesture mode: ' + mode);
-        }
-        
-        // Send keyboard text
-        function sendText() {
-            const text = document.getElementById('textInput').value;
-            if (text) {
-                sendCommand({
-                    type: 'text_input',
-                    text: text
-                });
-                document.getElementById('textInput').value = '';
-                logStatus('Text sent: ' + text);
+        // ==================== KEYBOARD SHORTCUTS ====================
+        document.addEventListener('keydown', (e) => {
+            if (!selectedDeviceId) return;
+            
+            // Check if user is typing in input field
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+            
+            switch(e.key) {
+                case 'Home':
+                    e.preventDefault();
+                    sendKey(3); // Home button
+                    break;
+                case 'Backspace':
+                    e.preventDefault();
+                    sendKey(4); // Back button
+                    break;
+                case 'Escape':
+                    e.preventDefault();
+                    sendKey(4); // Back button
+                    break;
+                case 'ArrowUp':
+                    e.preventDefault();
+                    sendKey(19); // D-pad up
+                    break;
+                case 'ArrowDown':
+                    e.preventDefault();
+                    sendKey(20); // D-pad down
+                    break;
+                case 'ArrowLeft':
+                    e.preventDefault();
+                    sendKey(21); // D-pad left
+                    break;
+                case 'ArrowRight':
+                    e.preventDefault();
+                    sendKey(22); // D-pad right
+                    break;
+                case 'Enter':
+                    e.preventDefault();
+                    sendKey(66); // Enter key
+                    break;
             }
+        });
+        
+        // ==================== TOAST NOTIFICATIONS ====================
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toastContainer');
+            
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            
+            const icons = {
+                success: '✅',
+                error: '❌',
+                info: 'ℹ️'
+            };
+            
+            toast.innerHTML = `
+                <span>${icons[type] || 'ℹ️'}</span>
+                <span>${message}</span>
+            `;
+            
+            container.appendChild(toast);
+            
+            // Remove after 3 seconds
+            setTimeout(() => {
+                toast.style.animation = 'slideIn 0.3s ease reverse';
+                setTimeout(() => {
+                    container.removeChild(toast);
+                }, 300);
+            }, 3000);
         }
         
-        // Send key events
-        function sendKeyEvent(keyCode) {
-            sendCommand({
-                type: 'key_event',
-                keyCode: keyCode
-            });
-            logStatus('Key event sent: ' + keyCode);
+        // ==================== UTILITY FUNCTIONS ====================
+        function refreshDevices() {
+            showToast('Refreshing device list...', 'info');
+            loadDevices();
         }
         
-        // Status logging
-        function logStatus(message) {
-            const log = document.getElementById('statusLog');
-            log.innerHTML = `[${new Date().toLocaleTimeString()}] ${message}<br>` + log.innerHTML;
+        // Handle page unload
+        window.addEventListener('beforeunload', () => {
+            if (selectedDeviceId) {
+                disconnectDevice();
+            }
+        });
+        
+        // Handle browser close
+        window.addEventListener('unload', () => {
+            if (selectedDeviceId) {
+                db.ref('devices/' + selectedDeviceId + '/connectionRequest').set('disconnect');
+            }
+        });
+        
+        // ==================== INITIALIZATION ====================
+        function init() {
+            loadDevices();
+            
+            // Auto-refresh device list every 30 seconds
+            setInterval(() => {
+                if (!selectedDeviceId) {
+                    db.ref('devices').once('value', (snapshot) => {
+                        // Device list is already listening, this is just to keep connection alive
+                    });
+                }
+            }, 30000);
+            
+            console.log('🚀 Remote Device Manager initialized');
+            console.log('📱 Waiting for devices...');
         }
         
-        // Initialize
-        loadDevices();
-        logStatus('System initialized');
+        // Start the application
+        init();
     </script>
 </body>
 </html>
